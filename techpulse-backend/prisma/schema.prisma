@@ -1,0 +1,17 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Our Caching Table
+model TechAnalysis {
+  id        String   @id @default(uuid())
+  techName  String   @unique // Ensures we never analyze "react" twice
+  metrics   Json     // Stores the raw GitHub/Job numbers 
+  aiInsight Json     // Stores the Gemini verdict
+  createdAt DateTime @default(now())
+}
