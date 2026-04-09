@@ -6,6 +6,24 @@ const getHeaders = (token) => ({
 });
 
 export const api = {
+  // 🧠 ENTERPRISE STANDARD: The new analyze endpoint with explicit error throwing for React Query
+  analyze: async (techName) => {
+    const res = await fetch(`${BASE_URL}/analyze`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ tech: techName })
+    });
+    
+    const data = await res.json();
+    
+    // React Query relies on actual Errors being thrown to trigger the "error" state in the UI
+    if (!res.ok || data.success === false) {
+      throw new Error(data.message || `Failed to analyze ${techName}.`);
+    }
+    
+    return data;
+  },
+
   fetchFeed: async ({ query = '', tab = 'For You' } = {}) => {
     const params = new URLSearchParams();
     if (query) params.set('q', query);

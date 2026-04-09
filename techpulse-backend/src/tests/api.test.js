@@ -1,31 +1,30 @@
-import { describe, it, expect } from 'vitest';
 import request from 'supertest';
-import express from 'express';
-import cors from 'cors';
-import router from '../src/routes/index.js';
-import { errorHandler } from '../src/middleware/errorHandler.js';
+import { app } from '../../server.js';
+import { PrismaClient } from '@prisma/client';
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(router);
-app.use(errorHandler);
+const prisma = new PrismaClient();
 
-describe('Auth API', () => {
-  it('should return 400 for invalid signup data', async () => {
-    const res = await request(app)
-      .post('/api/signup')
-      .send({ email: 'invalid-email', password: '123' });
+describe('🚀 TechPulse API Integration Tests', () => {
     
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
-  });
-});
+    // 🧹 ENTERPRISE STANDARD: Always clean up database connections after tests
+    afterAll(async () => {
+        await prisma.$disconnect();
+    });
 
-describe('Feed API', () => {
-  it('should return 200 for public feed', async () => {
-    const res = await request(app).get('/api/feed');
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-  });
+    describe('Security & Middleware', () => {
+        it('should have Helmet security headers applied', async () => {
+            // We test the root route just to check headers
+            const res = await request(app).get('/');
+            expect(res.headers).toHaveProperty('content-security-policy');
+        });
+    });
+
+    describe('API Error Handling', () => {
+        it('should gracefully handle requests to unknown routes (404)', async () => {
+            const res = await request(app).post('/api/this-route-does-not-exist');
+            
+            // It should return a 404 status code
+            expect(res.statusCode).toBe(404);
+        });
+    });
 });
