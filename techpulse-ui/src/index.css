@@ -1,1 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --color-tp-dark: #0b0e14;
+  --color-tp-surface: #1a1d23;
+  --color-tp-accent: #3b82f6;
+  --color-tp-indigo: #6366f1;
+  --color-tp-border: rgba(255, 255, 255, 0.05);
+  
+  --font-tp-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  
+  --radius-tp-xl: 1.5rem;
+  --radius-tp-2xl: 2.5rem;
+
+  @keyframes scan {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(100%); opacity: 1; }
+  }
+  
+  @keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+  }
+
+  --animate-tp-scan: scan 2s linear infinite;
+  --animate-tp-float: float 6s ease-in-out infinite;
+}
+
+@layer base {
+  body {
+    @apply bg-tp-dark text-slate-200 antialiased font-tp-sans selection:bg-tp-accent/30 overflow-hidden;
+  }
+
+  /* Custom Scrollbar Styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-tp-dark;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full hover:bg-white/20;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-tp-surface border border-tp-border rounded-tp-xl transition-all duration-300;
+  }
+  
+  .glass-card-hover {
+    @apply hover:border-tp-accent/30 hover:shadow-2xl hover:shadow-tp-accent/5;
+  }
+
+  .nav-btn {
+    @apply w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all;
+  }
+
+  .tp-btn-primary {
+    @apply bg-tp-accent text-white hover:bg-blue-500 px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-lg shadow-tp-accent/20;
+  }
+
+  .tp-input {
+    @apply w-full bg-tp-surface border border-tp-border pl-10 pr-5 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-tp-accent/50 text-sm placeholder:text-slate-600 font-tp-sans;
+  }
+}
