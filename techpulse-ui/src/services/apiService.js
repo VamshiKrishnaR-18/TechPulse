@@ -1,96 +1,54 @@
-const BASE_URL = 'http://127.0.0.1:5000/api';
+import axios from "axios";
 
-const getHeaders = (token) => ({
-  'Content-Type': 'application/json',
-  ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+// Pull from Vite environment variables, fallback to localhost
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+// 1. Create a centralized Axios instance
+const apiClient = axios.create({
+  baseURL: BASE_URL,
+  withCredentials: true,
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
-export const api = {
-  // 🧠 ENTERPRISE STANDARD: The new analyze endpoint with explicit error throwing for React Query
-  analyze: async (techName) => {
-    const res = await fetch(`${BASE_URL}/analyze`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ tech: techName })
-    });
-    
-    const data = await res.json();
-    
-    // React Query relies on actual Errors being thrown to trigger the "error" state in the UI
-    if (!res.ok || data.success === false) {
-      throw new Error(data.message || `Failed to analyze ${techName}.`);
+// 3. RESPONSE INTERCEPTOR: Global Error Handling
+apiClient.interceptors.response.use(
+  (response) => response.data,
+  (error) => {
+    const message =
+      error.response?.data?.message ||
+      error.message ||
+      "An unexpected server error occurred.";
+
+    if (error.response?.status === 401) {
+      console.warn("Authentication expired. Logging out.");
     }
-    
-    return data;
-  },
 
-  fetchFeed: async ({ query = '', tab = 'For You' } = {}) => {
-    const params = new URLSearchParams();
-    if (query) params.set('q', query);
-    if (tab) params.set('tab', tab);
-    const res = await fetch(`${BASE_URL}/feed?${params.toString()}`);
-    return res.json();
+    return Promise.reject(new Error(message));
   },
+);
 
-  suggestSearch: async (query) => {
-    const res = await fetch(`${BASE_URL}/suggest-search?query=${encodeURIComponent(query)}`);
-    return res.json();
-  },
-  
-  fetchMetrics: async (category = 'languages') => {
-    const res = await fetch(`${BASE_URL}/metrics?category=${category}`);
-    return res.json();
-  },
-  
-  fetchHistory: async (token) => {
-    const res = await fetch(`${BASE_URL}/history${token ? `?token=${token}` : ''}`, {
-      headers: getHeaders(token)
-    });
-    return res.json();
-  },
-  
-  fetchSavedArticles: async (token) => {
-    const res = await fetch(`${BASE_URL}/saved-articles`, {
-      headers: getHeaders(token)
-    });
-    return res.json();
-  },
-  
-  saveArticle: async (article, token) => {
-    const res = await fetch(`${BASE_URL}/save-article`, {
-      method: 'POST',
-      headers: getHeaders(token),
-      body: JSON.stringify({ ...article, token })
-    });
-    return res.json();
-  },
-  
-  summarize: async (article) => {
-    const res = await fetch(`${BASE_URL}/summarize`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ title: article.title, description: article.description, url: article.url })
-    });
-    return res.json();
-  },
-  
-  auth: async (mode, data) => {
-    const res = await fetch(`${BASE_URL}/${mode}`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(data)
-    });
-    return res.json();
-  },
-  
-  saveAnalysis: async (techName, token) => {
-    const res = await fetch(`${BASE_URL}/save`, {
-      method: 'POST',
-      headers: getHeaders(token),
-      body: JSON.stringify({ techName, token })
-    });
-    return res.json();
-  },
-
-  getStreamUrl: (tech) => `${BASE_URL}/analyze/stream?tech=${encodeURIComponent(tech)}`
+// 4. The Clean API Definitions
+export const api = {
+  analyze: (techName) => apiClient.post("/analyze", { tech: techName }),
+  fetchFeed: ({ query = "", tab = "For You" } = {}) =>
+    apiClient.get("/feed", { params: { q: query, tab } }),
+  suggestSearch: (query) =>
+    apiClient.get("/suggest-search", { params: { query } }),
+  fetchMetrics: (category = "languages") =>
+    apiClient.get("/metrics", { params: { category } }),
+  fetchHistory: () => apiClient.get("/history"),
+  fetchSavedArticles: () => apiClient.get("/saved-articles"),
+  saveArticle: (article) => apiClient.post("/save-article", article),
+  summarize: (article) =>
+    apiClient.post("/summarize", {
+      title: article.title,
+      description: article.description,
+      url: article.url,
+    }),
+  auth: (mode, data) => apiClient.post(`/${mode}`, data),
+  saveAnalysis: (techName) => apiClient.post("/save", { techName }),
+  getStreamUrl: (tech) =>
+    `${BASE_URL}/analyze/stream?tech=${encodeURIComponent(tech)}`,
 };
