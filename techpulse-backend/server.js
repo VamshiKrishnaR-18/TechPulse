@@ -1,10 +1,12 @@
+import cookieParser from 'cookie-parser';
+import dotenv from 'dotenv';
 import express from 'express';
 import 'express-async-errors';
 import cors from 'cors';
 import helmet from 'helmet'; // 🛡️ NEW: HTTP Header Security
 import rateLimit from 'express-rate-limit'; // 🚦 NEW: Traffic Control
 import morgan from 'morgan';
-import dotenv from 'dotenv';
+
 import router from './src/routes/index.js';
 import { initCronJobs } from './src/services/cronService.js';
 import { errorHandler } from './src/middleware/errorHandler.js';
@@ -50,6 +52,7 @@ const limiter = rateLimit({
 app.use('/api', limiter); 
 
 app.use(express.json());
+app.use(cookieParser());
 app.use(morgan('dev'));
 
 // Swagger Documentation

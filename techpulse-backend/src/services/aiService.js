@@ -42,7 +42,7 @@ export const getAISummarization = async (title, description) => {
         Context: ${description}
         
         Task:
-        1. Summarize the core development in 4-5 detailed, high-impact bullet points. Each point should be a complete thought (15-20 words).
+        1. Summarize the core development in 6-10 detailed, high-impact bullet points. Each point should be a complete thought (15-20 words).
         2. Identify the 'main_tech' mentioned.
         3. Provide a 'sentiment_score' (0-100).
         4. Write a 2-sentence 'impact_verdict' explaining the long-term significance of this news for the industry.

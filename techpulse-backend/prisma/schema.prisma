@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
 }
 
 // Global Cache for Analysis (Public)
@@ -21,6 +21,7 @@ model User {
   id        String          @id @default(uuid())
   email     String          @unique
   password  String
+  role      String          @default("user")
   history   SavedAnalysis[]
   savedArticles SavedArticle[]
   createdAt DateTime        @default(now())
