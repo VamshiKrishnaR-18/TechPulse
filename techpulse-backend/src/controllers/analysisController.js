@@ -15,25 +15,47 @@ export const saveAnalysis = async (req, res) => {
 };
 
 export const getHistory = async (req, res) => {
-    const { token } = req.query;
     try {
+        // 1. Extract pagination values (default to page 1, 10 items)
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
         const userId = req.user?.userId;
+        
         if (userId) {
             const history = await prisma.savedAnalysis.findMany({
                 where: { userId },
                 orderBy: { createdAt: 'desc' },
-                take: 20
+                take: limit,
+                skip: skip
             });
-            return res.json({ success: true, history });
+            
+            // Count total for the frontend
+            const total = await prisma.savedAnalysis.count({
+                where: { userId }
+            });
+
+            return res.json({ 
+                success: true, 
+                history, 
+                meta: { total, page, totalPages: Math.ceil(total / limit) } 
+            });
         }
         throw new Error("No user");
     } catch (e) {
-        // Fallback for Guests
+        // Fallback for Guests (also paginated now)
         try {
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const skip = (page - 1) * limit;
+
             const globalHistory = await prisma.techAnalysis.findMany({
                 orderBy: { createdAt: 'desc' },
-                take: 10
+                take: limit,
+                skip: skip
             });
+            
             res.json({ success: true, history: globalHistory, isGuest: true });
         } catch (dbError) {
             console.error("Guest History DB Error:", dbError.message);

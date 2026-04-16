@@ -38,8 +38,8 @@ export const api = {
     apiClient.get("/suggest-search", { params: { query } }),
   fetchMetrics: (category = "languages") =>
     apiClient.get("/metrics", { params: { category } }),
-  fetchHistory: () => apiClient.get("/history"),
-  fetchSavedArticles: () => apiClient.get("/saved-articles"),
+  fetchHistory: (page = 1, limit = 10) => apiClient.get("/history", { params: { page, limit } }),
+  fetchSavedArticles: (page = 1, limit = 10) => apiClient.get("/saved-articles", { params: { page, limit } }),
   saveArticle: (article) => apiClient.post("/save-article", article),
   summarize: (article) =>
     apiClient.post("/summarize", {
@@ -51,4 +51,5 @@ export const api = {
   saveAnalysis: (techName) => apiClient.post("/save", { techName }),
   getStreamUrl: (tech) =>
     `${BASE_URL}/analyze/stream?tech=${encodeURIComponent(tech)}`,
+  fetchAdminStats: () => apiClient.get("/admin/stats"),
 };

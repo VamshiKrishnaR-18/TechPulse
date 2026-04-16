@@ -25,7 +25,7 @@ export const signup = async (req, res) => {
       sameSite: "lax", // CSRF protection
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
     });
-    res.json({ success: true, token, user: { email: user.email } });
+    res.json({ success: true, token, user: { email: user.email, role: user.role } });
   } catch (e) {
     res.status(400).json({
       success: false,
@@ -53,7 +53,7 @@ export const login = async (req, res) => {
         sameSite: "lax", // CSRF protection
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
       });
-      res.json({ success: true, token, user: { email: user.email } });
+      res.json({ success: true, token, user: { email: user.email, role: user.role } });
     } else {
       res.status(401).json({ success: false, message: "Invalid credentials." });
     }

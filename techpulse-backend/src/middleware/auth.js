@@ -16,13 +16,13 @@ export const authenticateToken = (req, res, next) => {
     }
 };
 
-// Middleware to protect admin-only routes
+
 export const requireAdmin = (req, res, next) => {
-    // req.user is attached by authenticateToken middleware
-    if (!req.user || req.user.role !== 'admin') {
+    // req.user is set by your first auth middleware
+    if (!req.user || req.user.role !== 'ADMIN') {
         return res.status(403).json({ 
             success: false, 
-            message: "Forbidden: Super User access required." 
+            message: "Access denied. Admin privileges required." 
         });
     }
     next();
