@@ -16,15 +16,19 @@ model TechAnalysis {
   createdAt DateTime @default(now())
 }
 
-// User Accounts (Personalized)
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
-  id        String          @id @default(uuid())
-  email     String          @unique
+  id        String   @id @default(uuid())
+  email     String   @unique
   password  String
-  role      String          @default("user")
+  role      Role     @default(USER)
   history   SavedAnalysis[]
   savedArticles SavedArticle[]
-  createdAt DateTime        @default(now())
+  createdAt DateTime @default(now())
 }
 
 // Personal History for Signed-up Users

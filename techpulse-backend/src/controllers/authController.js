@@ -8,8 +8,9 @@ export const signup = async (req, res) => {
   const { email, password } = req.body;
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
+    const isFirstUser = await prisma.user.count() === 0;
     const user = await prisma.user.create({
-      data: { email, password: hashedPassword },
+      data: { email, password: hashedPassword, role: isFirstUser ? "ADMIN" : "USER" },
     });
     const token = jwt.sign(
       {
