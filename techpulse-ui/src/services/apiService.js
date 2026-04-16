@@ -52,4 +52,11 @@ export const api = {
   getStreamUrl: (tech) =>
     `${BASE_URL}/analyze/stream?tech=${encodeURIComponent(tech)}`,
   fetchAdminStats: () => apiClient.get("/admin/stats"),
+  fetchAdminLogs: (type = "combined") =>
+    apiClient.get("/admin/logs", {
+      params: { type },
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("tp_token")}`,
+      },
+    }),
 };

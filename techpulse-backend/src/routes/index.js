@@ -9,6 +9,6 @@ const router = express.Router();
 router.use('/api', authRoutes);
 router.use('/api', feedRoutes);
 router.use('/api', analysisRoutes);
-router.use('/admin', adminRoutes);
+router.use('/api/admin', adminRoutes);
 
 export default router;

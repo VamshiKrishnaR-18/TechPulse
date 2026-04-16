@@ -18,6 +18,14 @@ dotenv.config();
 const app = express();
 
 // ==========================================
+// 0. TRUST PROXY (Production Requirement)
+// ==========================================
+// When deploying to cloud platforms (Render, AWS, Heroku, etc.), 
+// traffic passes through a load balancer/proxy. This ensures 
+// express-rate-limit correctly identifies the client's real IP.
+app.set('trust proxy', 1);
+
+// ==========================================
 // 1. HTTP HEADER PROTECTION (HELMET)
 // ==========================================
 // Automatically hides the "X-Powered-By: Express" header and sets strict 

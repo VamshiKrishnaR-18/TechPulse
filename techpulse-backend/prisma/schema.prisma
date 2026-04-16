@@ -35,7 +35,7 @@ model User {
 model SavedAnalysis {
   id        String   @id @default(uuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   techName  String
   createdAt DateTime @default(now())
 }
@@ -44,7 +44,7 @@ model SavedAnalysis {
 model SavedArticle {
   id        String   @id @default(uuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
   url       String
   source    String
