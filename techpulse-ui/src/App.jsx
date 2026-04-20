@@ -77,7 +77,17 @@ function App() {
     startQuickAnalyze,
     resetAnalysis,
     history,
+    cachedTechNames,
   } = useTechPulse();
+
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const filteredSuggestions = cachedTechNames.filter(
+    (name) =>
+      name.toLowerCase().includes(tech.toLowerCase()) &&
+      name.toLowerCase() !== tech.toLowerCase()
+  );
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -241,10 +251,29 @@ function App() {
                               <input
                                 type="text"
                                 value={tech}
-                                onChange={(e) => setTech(e.target.value)}
-                                onKeyDown={(e) =>
-                                  e.key === "Enter" && handleAnalyze()
-                                }
+                                onChange={(e) => {
+                                  setTech(e.target.value);
+                                  setShowSuggestions(true);
+                                }}
+                                onFocus={() => setShowSuggestions(true)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    if (activeSuggestionIndex >= 0) {
+                                      setTech(filteredSuggestions[activeSuggestionIndex]);
+                                      setShowSuggestions(false);
+                                    } else {
+                                      handleAnalyze();
+                                    }
+                                  } else if (e.key === "ArrowDown") {
+                                    setActiveSuggestionIndex((prev) => 
+                                      prev < filteredSuggestions.length - 1 ? prev + 1 : prev
+                                    );
+                                  } else if (e.key === "ArrowUp") {
+                                    setActiveSuggestionIndex((prev) => (prev > 0 ? prev - 1 : -1));
+                                  } else if (e.key === "Escape") {
+                                    setShowSuggestions(false);
+                                  }
+                                }}
                                 placeholder={
                                   isVersus
                                     ? "Base technology (e.g. React)..."
@@ -252,6 +281,28 @@ function App() {
                                 }
                                 className="flex-1 bg-transparent border-none outline-none text-white font-bold text-sm placeholder:text-slate-600"
                               />
+
+                              {/* Autocomplete Dropdown */}
+                              {showSuggestions && tech.length > 0 && filteredSuggestions.length > 0 && (
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-tp-dark border border-white/10 rounded-2xl shadow-2xl z-[100] overflow-hidden">
+                                  {filteredSuggestions.slice(0, 5).map((suggestion, index) => (
+                                    <button
+                                      key={suggestion}
+                                      onClick={() => {
+                                        setTech(suggestion);
+                                        setShowSuggestions(false);
+                                      }}
+                                      className={`w-full text-left px-6 py-3 text-sm font-bold transition-colors ${
+                                        index === activeSuggestionIndex 
+                                        ? 'bg-tp-accent text-black' 
+                                        : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                                      }`}
+                                    >
+                                      {suggestion}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             {isVersus && (
                               <div className="flex items-center pl-6 py-2">
@@ -301,7 +352,48 @@ function App() {
 
                       {/* Strategic Process Steps */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full pt-8">
-                        {[
+                        {history.length > 0 ? (
+                          <div className="col-span-full space-y-6">
+                            <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                               <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] italic">
+                                  Recent Intelligence Reports
+                               </h3>
+                               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                  {history.length} Reports Cached
+                               </p>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                               {history.slice(0, 6).map((item, i) => (
+                                  <motion.button
+                                     key={item.id}
+                                     initial={{ opacity: 0, y: 10 }}
+                                     animate={{ opacity: 1, y: 0 }}
+                                     transition={{ delay: i * 0.05 }}
+                                     onClick={() => startQuickAnalyze(item.techName)}
+                                     className="group p-6 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/5 hover:border-tp-accent/30 transition-all text-left relative overflow-hidden"
+                                  >
+                                     <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-20 transition-opacity">
+                                        <Activity size={40} />
+                                     </div>
+                                     <div className="text-[8px] font-black text-tp-accent uppercase tracking-widest mb-1">
+                                        {new Date(item.createdAt).toLocaleDateString()}
+                                     </div>
+                                     <h4 className="text-lg font-black text-white group-hover:text-tp-accent transition-colors">
+                                        {item.techName}
+                                     </h4>
+                                     <div className="flex gap-2 mt-3">
+                                        <div className="px-2 py-0.5 bg-tp-accent/10 rounded-md text-[8px] font-black text-tp-accent uppercase tracking-tighter">
+                                           Hiring: {item.metrics?.job_score || 0}%
+                                        </div>
+                                        <div className="px-2 py-0.5 bg-tp-indigo/10 rounded-md text-[8px] font-black text-tp-indigo uppercase tracking-tighter">
+                                           GitHub: {item.metrics?.github_score || 0}%
+                                        </div>
+                                     </div>
+                                  </motion.button>
+                               ))}
+                            </div>
+                          </div>
+                        ) : [
                           {
                             step: "01",
                             title: "Data Ingestion",
@@ -398,6 +490,7 @@ function App() {
                         onApplySuggestion={applySuggestion}
                         visibleCount={visibleFeedCount}
                         onLoadMore={loadMoreFeed}
+                        trends={trends}
                       />
                     </motion.div>
                   )}
@@ -429,6 +522,8 @@ function App() {
                         startQuickAnalyze={startQuickAnalyze}
                         exportReport={exportReport}
                         reportRef={reportRef}
+                        followedTechs={followedTechs}
+                        handleToggleFollow={handleToggleFollow}
                       />
                     </motion.div>
                   )}
@@ -445,9 +540,37 @@ function App() {
                       className="space-y-8"
                     >
                       <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                        <h2 className="text-2xl font-black text-white uppercase tracking-tighter">
-                          Your Reading List
-                        </h2>
+                        <div className="flex flex-col gap-1">
+                          <h2 className="text-2xl font-black text-white uppercase tracking-tighter">
+                            Your Reading List
+                          </h2>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            {savedArticlesMeta.total} Articles Total • Page {savedArticlesPage} of {savedArticlesMeta.totalPages}
+                          </p>
+                        </div>
+                        
+                        {/* Pagination Controls */}
+                        {savedArticlesMeta.totalPages > 1 && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              disabled={savedArticlesPage === 1}
+                              onClick={() => setSavedArticlesPage(p => Math.max(1, p - 1))}
+                              className="p-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-slate-400 disabled:opacity-20 transition-all"
+                            >
+                              <ChevronLeft size={16} />
+                            </button>
+                            <span className="text-xs font-black text-white px-2 uppercase tracking-widest">
+                              {savedArticlesPage} / {savedArticlesMeta.totalPages}
+                            </span>
+                            <button
+                              disabled={savedArticlesPage === savedArticlesMeta.totalPages}
+                              onClick={() => setSavedArticlesPage(p => Math.min(savedArticlesMeta.totalPages, p + 1))}
+                              className="p-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-slate-400 disabled:opacity-20 transition-all"
+                            >
+                              <ChevronRight size={16} />
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {savedArticles.length === 0 ? (
@@ -472,6 +595,7 @@ function App() {
                                   <img
                                     src={item.image}
                                     className="w-full h-full object-cover"
+                                    alt={item.title}
                                   />
                                 </div>
                               )}
@@ -515,6 +639,37 @@ function App() {
                               </div>
                             </motion.div>
                           ))}
+                        </div>
+                      )}
+
+                      {/* Bottom Pagination */}
+                      {savedArticlesMeta.totalPages > 1 && (
+                        <div className="flex justify-center pt-8">
+                           <div className="flex items-center gap-4 p-2 bg-white/5 border border-white/5 rounded-2xl">
+                              <button
+                                disabled={savedArticlesPage === 1}
+                                onClick={() => {
+                                  setSavedArticlesPage(p => Math.max(1, p - 1));
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                className="px-6 py-2 bg-tp-dark hover:bg-tp-accent hover:text-black border border-white/5 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest disabled:opacity-20 transition-all"
+                              >
+                                Previous
+                              </button>
+                              <span className="text-[10px] font-black text-white uppercase tracking-widest">
+                                Page {savedArticlesPage} of {savedArticlesMeta.totalPages}
+                              </span>
+                              <button
+                                disabled={savedArticlesPage === savedArticlesMeta.totalPages}
+                                onClick={() => {
+                                  setSavedArticlesPage(p => Math.min(savedArticlesMeta.totalPages, p + 1));
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                className="px-6 py-2 bg-tp-dark hover:bg-tp-accent hover:text-black border border-white/5 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest disabled:opacity-20 transition-all"
+                              >
+                                Next
+                              </button>
+                           </div>
                         </div>
                       )}
                     </motion.div>

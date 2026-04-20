@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { fetchSentiment, getAIAnalysisStream } from '../services/aiService.js';
+import { AIAnalysisSchema, safeParseAIJSON } from '../utils/aiValidation.js';
 
 export const saveAnalysis = async (req, res) => {
     const { techName } = req.body;
@@ -50,13 +51,21 @@ export const getHistory = async (req, res) => {
             const limit = parseInt(req.query.limit) || 10;
             const skip = (page - 1) * limit;
 
-            const globalHistory = await prisma.techAnalysis.findMany({
-                orderBy: { createdAt: 'desc' },
-                take: limit,
-                skip: skip
-            });
+            const [globalHistory, total] = await Promise.all([
+                prisma.techAnalysis.findMany({
+                    orderBy: { createdAt: 'desc' },
+                    take: limit,
+                    skip: skip
+                }),
+                prisma.techAnalysis.count()
+            ]);
             
-            res.json({ success: true, history: globalHistory, isGuest: true });
+            res.json({ 
+                success: true, 
+                history: globalHistory, 
+                isGuest: true,
+                meta: { total, page, totalPages: Math.ceil(total / limit) } 
+            });
         } catch (dbError) {
             console.error("Guest History DB Error:", dbError.message);
             res.json({ success: true, history: [], isGuest: true, error: "Database offline" });
@@ -195,6 +204,59 @@ export const getMetrics = async (req, res) => {
     }
 };
 
+export const toggleFollow = async (req, res) => {
+    const { techName } = req.body;
+    const userId = req.user.userId;
+    const normalizedTech = techName.toLowerCase();
+
+    try {
+        const existing = await prisma.follow.findUnique({
+            where: {
+                userId_techName: { userId, techName: normalizedTech }
+            }
+        });
+
+        if (existing) {
+            await prisma.follow.delete({
+                where: { id: existing.id }
+            });
+            return res.json({ success: true, followed: false });
+        } else {
+            await prisma.follow.create({
+                data: { userId, techName: normalizedTech }
+            });
+            return res.json({ success: true, followed: true });
+        }
+    } catch (e) {
+        console.error("Toggle Follow Error:", e.message);
+        res.status(500).json({ success: false, message: "Failed to update following list." });
+    }
+};
+
+export const getFollowedTechs = async (req, res) => {
+    const userId = req.user.userId;
+    try {
+        const followed = await prisma.follow.findMany({
+            where: { userId },
+            select: { techName: true }
+        });
+        res.json({ success: true, followed: followed.map(f => f.techName) });
+    } catch (e) {
+        res.status(500).json({ success: false, message: "Failed to fetch following list." });
+    }
+};
+
+export const getCachedTechNames = async (req, res) => {
+    try {
+        const techs = await prisma.techAnalysis.findMany({
+            select: { techName: true }
+        });
+        res.json({ success: true, techNames: techs.map(t => t.techName) });
+    } catch (e) {
+        res.status(500).json({ success: false, message: "Failed to fetch cached technologies." });
+    }
+};
+
 export const streamAnalysis = async (req, res) => {
     const userTech = req.query.tech?.toLowerCase();
     if (!userTech) return res.status(400).json({ success: false, message: "Tech name required." });
@@ -233,22 +295,30 @@ export const streamAnalysis = async (req, res) => {
             if (chunkText) sendEvent({ success: true, status: "streaming", chunk: chunkText });
         }
 
-        const rawAiJSON = JSON.parse(fullText);
+        const rawAiJSON = safeParseAIJSON(fullText);
+        if (!rawAiJSON) throw new Error("AI returned malformed data.");
+
+        const validated = AIAnalysisSchema.safeParse(rawAiJSON);
+        if (!validated.success) {
+            console.warn("⚠️ AI Analysis validation failed:", validated.error.message);
+        }
+
+        const data = validated.success ? validated.data : rawAiJSON;
         
         // Ensure metrics are valid and normalized
         const metrics = {
-            github_score: Math.min(100, rawAiJSON.metrics?.github_score || 0),
-            job_score: Math.min(100, rawAiJSON.metrics?.job_score || 0),
-            stability_score: Math.min(100, rawAiJSON.metrics?.stability_score || 0)
+            github_score: Math.min(100, data.metrics?.github_score || 0),
+            job_score: Math.min(100, data.metrics?.job_score || 0),
+            stability_score: Math.min(100, data.metrics?.stability_score || 0)
         };
 
         const finalAnalysis = {
-            verdict: rawAiJSON.insight.verdict,
-            explanation: rawAiJSON.insight.explanation,
-            future_outlook: rawAiJSON.insight.future_outlook,
-            sentiment_keywords: rawAiJSON.sentiment_keywords,
-            tech_stack: rawAiJSON.tech_stack,
-            roadmap: rawAiJSON.roadmap
+            verdict: data.insight?.verdict || "Analysis Complete",
+            explanation: data.insight?.explanation || "Strategic report generated.",
+            future_outlook: data.insight?.future_outlook || "Stable market presence.",
+            sentiment_keywords: data.sentiment_keywords || [],
+            tech_stack: data.tech_stack || [],
+            roadmap: data.roadmap || []
         };
 
         await prisma.techAnalysis.upsert({

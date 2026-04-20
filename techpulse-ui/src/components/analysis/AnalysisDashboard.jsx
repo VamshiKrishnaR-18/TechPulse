@@ -3,8 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts'
 import { Share2, Download, Zap, Shield, Briefcase, Star, Cpu, Globe, Rocket, CheckCircle2, AlertTriangle, TrendingUp, Activity, HelpCircle } from 'lucide-react'
 
-const AnalysisDashboard = ({ result, result2, streamingText, startQuickAnalyze, exportReport, reportRef }) => {
+const AnalysisDashboard = ({ result, result2, streamingText, startQuickAnalyze, exportReport, reportRef, followedTechs = [], handleToggleFollow }) => {
   const [hoveredVector, setHoveredVector] = useState(null)
+  
+  const isFollowed = followedTechs.includes(result.technology?.toLowerCase());
 
   const vectorDetails = {
     'Runtime': 'Core execution environment stability and performance metrics.',
@@ -55,6 +57,18 @@ const AnalysisDashboard = ({ result, result2, streamingText, startQuickAnalyze, 
              </p>
           </div>
           <div className="flex gap-2">
+             {!result2 && handleToggleFollow && (
+                <button 
+                  onClick={() => handleToggleFollow(result.technology)} 
+                  className={`flex items-center gap-2 px-6 py-4 border rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                    isFollowed 
+                    ? 'bg-tp-accent/20 border-tp-accent text-tp-accent' 
+                    : 'bg-white/5 border-tp-border text-slate-400 hover:text-white hover:border-white/20'
+                  }`}
+                >
+                   {isFollowed ? 'Following' : 'Follow Topic'}
+                </button>
+             )}
              <button onClick={exportReport} className="flex items-center gap-2 px-8 py-4 bg-white/5 hover:bg-white/10 border border-tp-border rounded-2xl text-[10px] font-black text-slate-400 hover:text-white uppercase tracking-widest transition-all">
                 <Download size={14} />
                 Export
@@ -130,6 +144,44 @@ const AnalysisDashboard = ({ result, result2, streamingText, startQuickAnalyze, 
              
              {result2 ? (
                 <div className="space-y-10">
+                   {/* Strategic Delta Highlighting */}
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white/5 p-6 rounded-3xl border border-white/5">
+                      <div className="space-y-4">
+                         <h4 className="text-[10px] font-black text-tp-accent uppercase tracking-widest">Key Advantages: {result.technology}</h4>
+                         <ul className="space-y-2">
+                            {Object.entries(result.raw_metrics).map(([key, val]) => {
+                               const delta = val - result2.raw_metrics[key];
+                               if (delta > 0) {
+                                  return (
+                                     <li key={key} className="flex items-center gap-2 text-xs font-bold text-slate-300">
+                                        <div className="w-1 h-1 rounded-full bg-tp-accent"></div>
+                                        {delta}% higher {key.replace('_', ' ')}
+                                     </li>
+                                  );
+                               }
+                               return null;
+                            })}
+                         </ul>
+                      </div>
+                      <div className="space-y-4">
+                         <h4 className="text-[10px] font-black text-tp-indigo uppercase tracking-widest">Key Advantages: {result2.technology}</h4>
+                         <ul className="space-y-2">
+                            {Object.entries(result2.raw_metrics).map(([key, val]) => {
+                               const delta = val - result.raw_metrics[key];
+                               if (delta > 0) {
+                                  return (
+                                     <li key={key} className="flex items-center gap-2 text-xs font-bold text-slate-300">
+                                        <div className="w-1 h-1 rounded-full bg-tp-indigo"></div>
+                                        {delta}% higher {key.replace('_', ' ')}
+                                     </li>
+                                  );
+                               }
+                               return null;
+                            })}
+                         </ul>
+                      </div>
+                   </div>
+
                    <div className="flex flex-col md:flex-row gap-12">
                       <div className="flex-1 space-y-4">
                          <div className="text-[9px] font-black text-tp-accent uppercase tracking-widest">{result.technology} Analysis</div>
@@ -296,16 +348,16 @@ const AnalysisDashboard = ({ result, result2, streamingText, startQuickAnalyze, 
                <div className="h-[400px] min-h-[400px] relative z-10">
                   <ResponsiveContainer width="100%" height="100%">
                      <RadarChart cx="50%" cy="50%" outerRadius="80%" data={[
-                        { subject: 'DevEx', A: result.raw_metrics.github_score, B: result2?.raw_metrics.github_score || 80 },
-                        { subject: 'Performance', A: result.raw_metrics.stability_score, B: result2?.raw_metrics.stability_score || 70 },
-                        { subject: 'Market', A: result.raw_metrics.job_score, B: result2?.raw_metrics.job_score || 60 },
-                        { subject: 'Cloud', A: (result.raw_metrics.github_score + result.raw_metrics.stability_score) / 2, B: 75 },
-                        { subject: 'AI Ready', A: (result.raw_metrics.job_score + result.raw_metrics.github_score) / 2, B: 85 }
+                        { subject: 'DevEx', A: result.raw_metrics.github_score, B: result2 ? result2.raw_metrics.github_score : 80 },
+                        { subject: 'Performance', A: result.raw_metrics.stability_score, B: result2 ? result2.raw_metrics.stability_score : 70 },
+                        { subject: 'Market', A: result.raw_metrics.job_score, B: result2 ? result2.raw_metrics.job_score : 60 },
+                        { subject: 'Cloud Native', A: (result.raw_metrics.github_score + result.raw_metrics.stability_score) / 2, B: result2 ? (result2.raw_metrics.github_score + result2.raw_metrics.stability_score) / 2 : 75 },
+                        { subject: 'AI Integration', A: (result.raw_metrics.job_score + result.raw_metrics.github_score) / 2, B: result2 ? (result2.raw_metrics.job_score + result2.raw_metrics.github_score) / 2 : 85 }
                      ]}>
                         <PolarGrid stroke="rgba(255,255,255,0.05)" />
                         <PolarAngleAxis dataKey="subject" tick={{ fill: '#475569', fontSize: 9, fontWeight: 'black', textTransform: 'uppercase' }} />
                         <Radar name={result.technology} dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} animationBegin={500} animationDuration={1500} />
-                        {result2 && <Radar name={result2.technology} dataKey="B" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} animationBegin={700} animationDuration={1500} />}
+                        <Radar name={result2 ? result2.technology : "Industry Avg"} dataKey="B" stroke="#6366f1" fill="#6366f1" fillOpacity={0.1} animationBegin={700} animationDuration={1500} />
                         <Tooltip contentStyle={{ background: '#11141a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }} />
                      </RadarChart>
                   </ResponsiveContainer>

@@ -48,6 +48,8 @@ export const api = {
       url: article.url,
     }),
   auth: (mode, data) => apiClient.post(`/${mode}`, data),
+  toggleFollow: (techName) => apiClient.post("/follow/toggle", { techName }),
+  fetchFollowedTechs: () => apiClient.get("/follow/list"),
   saveAnalysis: (techName) => apiClient.post("/save", { techName }),
   getStreamUrl: (tech) =>
     `${BASE_URL}/analyze/stream?tech=${encodeURIComponent(tech)}`,
@@ -59,4 +61,5 @@ export const api = {
         Authorization: `Bearer ${localStorage.getItem("tp_token")}`,
       },
     }),
+  fetchCachedTechNames: () => apiClient.get("/cached-names"),
 };

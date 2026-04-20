@@ -1,19 +1,32 @@
-export const fetchMixedFeed = async ({ query = '', tab = 'For You' } = {}) => {
+export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTechs = [] } = {}) => {
     try {
         const normalizedQuery = query.trim().toLowerCase();
-        const firstKeyword = normalizedQuery.split(/\s+/).filter(Boolean)[0] || '';
-        const devToUrl = normalizedQuery
+        
+        // 1. Determine search terms
+        let searchTerms = normalizedQuery;
+        
+        // If "For You" and user follows techs, and NO explicit search query is provided
+        if (tab === 'For You' && followedTechs.length > 0 && !normalizedQuery) {
+            // Pick a few random followed techs or join them to broaden the feed
+            searchTerms = followedTechs.join(' OR ');
+        }
+
+        const firstKeyword = searchTerms.split(/\s+/).filter(Boolean)[0] || '';
+        
+        const devToUrl = searchTerms
             ? `https://dev.to/api/articles?per_page=25&tag=${encodeURIComponent(firstKeyword)}`
             : 'https://dev.to/api/articles?per_page=30&top=7';
-        const hnUrl = normalizedQuery
-            ? `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(normalizedQuery)}&tags=story&hitsPerPage=30`
+        
+        const hnUrl = searchTerms
+            ? `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(searchTerms)}&tags=story&hitsPerPage=30`
             : 'https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=30';
-        const redditUrl = normalizedQuery
-            ? `https://www.reddit.com/r/programming/search.json?q=${encodeURIComponent(normalizedQuery)}&restrict_sr=1&sort=hot&limit=30`
+        
+        const redditUrl = searchTerms
+            ? `https://www.reddit.com/r/programming/search.json?q=${encodeURIComponent(searchTerms)}&restrict_sr=1&sort=hot&limit=30`
             : 'https://www.reddit.com/r/programming/hot.json?limit=30';
 
-        const githubUrl = normalizedQuery
-            ? `https://api.github.com/search/repositories?q=${encodeURIComponent(normalizedQuery)}+sort:stars&per_page=30`
+        const githubUrl = searchTerms
+            ? `https://api.github.com/search/repositories?q=${encodeURIComponent(searchTerms)}+sort:stars&per_page=30`
             : `https://api.github.com/search/repositories?q=created:>${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}+sort:stars&per_page=30`;
 
         const [devToRes, hnRes, redditRes, githubRes] = await Promise.all([

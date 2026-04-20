@@ -6,22 +6,27 @@ import { api } from '../../services/apiService.js';
 export const useUserData = (token, setAuthMode) => {
   const queryClient = useQueryClient();
   const [trendsCategory, setTrendsCategory] = useState('languages');
+  
+  // Pagination State
+  const [historyPage, setHistoryPage] = useState(1);
+  const [savedArticlesPage, setSavedArticlesPage] = useState(1);
+  const PAGE_LIMIT = 10;
 
   // 1. Data Fetching
-  const { data: savedData } = useQuery({
-    queryKey: ['savedArticles', token],
-    queryFn: () => api.fetchSavedArticles(token),
+  const { data: savedData, isLoading: isSavedLoading } = useQuery({
+    queryKey: ['savedArticles', token, savedArticlesPage],
+    queryFn: () => api.fetchSavedArticles(savedArticlesPage, PAGE_LIMIT),
     enabled: !!token,
-    select: (data) => data.success ? data.articles : [],
   });
-  const savedArticles = savedData || [];
+  const savedArticles = savedData?.articles || [];
+  const savedArticlesMeta = savedData?.meta || { total: 0, page: 1, totalPages: 1 };
 
-  const { data: historyData } = useQuery({
-    queryKey: ['history', token],
-    queryFn: () => api.fetchHistory(token),
-    select: (data) => data.success ? data.history : [],
+  const { data: historyData, isLoading: isHistoryLoading } = useQuery({
+    queryKey: ['history', token, historyPage],
+    queryFn: () => api.fetchHistory(historyPage, PAGE_LIMIT),
   });
-  const history = historyData || [];
+  const history = historyData?.history || [];
+  const historyMeta = historyData?.meta || { total: 0, page: 1, totalPages: 1 };
 
   const { data: analyticsData, isLoading: isTrendsLoading } = useQuery({
     queryKey: ['analytics', trendsCategory],
@@ -74,7 +79,40 @@ export const useUserData = (token, setAuthMode) => {
   };
 
   return {
-    savedArticles, history, trends, isTrendsLoading, trendsCategory, setTrendsCategory,
-    handleSaveArticle, handleRemoveArticle, handleClearHistory
+    savedArticles, savedArticlesMeta, savedArticlesPage, setSavedArticlesPage,
+    history, historyMeta, historyPage, setHistoryPage,
+    trends, isTrendsLoading, trendsCategory, setTrendsCategory,
+    isSavedLoading, isHistoryLoading,
+    handleSaveArticle, handleRemoveArticle, handleClearHistory,
+    followedTechs,
+    handleToggleFollow
   };
+};
+
+export const useUserInterests = (token) => {
+  const queryClient = useQueryClient();
+
+  const { data: followedData } = useQuery({
+    queryKey: ['followedTechs', token],
+    queryFn: () => api.fetchFollowedTechs(),
+    enabled: !!token,
+    select: (data) => data.followed || [],
+  });
+  const followedTechs = followedData || [];
+
+  const toggleFollowMutation = useMutation({
+    mutationFn: (techName) => api.toggleFollow(techName),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['followedTechs'] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      toast.success(data.followed ? 'Now following topic' : 'Topic removed from interests');
+    },
+  });
+
+  const handleToggleFollow = (techName) => {
+    if (!token) return;
+    toggleFollowMutation.mutate(techName);
+  };
+
+  return { followedTechs, handleToggleFollow };
 };

@@ -15,7 +15,8 @@ const NewsFeed = ({
   suggestedQuery = '',
   onApplySuggestion,
   visibleCount = 12,
-  onLoadMore
+  onLoadMore,
+  trends = []
 }) => {
   const [sourceFilter, setSourceFilter] = useState('All')
   const container = {
@@ -91,6 +92,26 @@ const NewsFeed = ({
             ))}
           </div>
        </div>
+
+       {/* Trending Topics Bar */}
+       {trends.length > 0 && (
+         <div className="flex items-center gap-4 overflow-x-auto pb-2 no-scrollbar">
+           <span className="text-[10px] font-black text-tp-accent uppercase tracking-widest whitespace-nowrap">
+             🔥 Trending Topics:
+           </span>
+           <div className="flex gap-2">
+             {trends.slice(0, 10).map((t) => (
+               <button
+                 key={t.name}
+                 onClick={() => onSearchChange?.(t.name)}
+                 className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full text-[9px] font-bold text-slate-400 hover:text-tp-accent whitespace-nowrap transition-all"
+               >
+                 {t.name}
+               </button>
+             ))}
+           </div>
+         </div>
+       )}
 
        <motion.div 
          variants={container}

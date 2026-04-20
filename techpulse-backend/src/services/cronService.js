@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import prisma from '../config/prisma.js';
 import { fetchSentiment, getAIAnalysisStream } from './aiService.js';
+import { AIAnalysisSchema, safeParseAIJSON } from '../utils/aiValidation.js';
 
 export const initCronJobs = () => {
     // Run weekly: 0 0 * * 0 (Sunday at midnight)
@@ -36,22 +37,29 @@ export const initCronJobs = () => {
                         fullText += chunk.choices[0]?.delta?.content || "";
                     }
 
-                    const rawAiJSON = JSON.parse(fullText);
+                    const rawAiJSON = safeParseAIJSON(fullText);
+                    if (!rawAiJSON) {
+                        console.error(`❌ Malformed JSON for [${userTech}], skipping...`);
+                        continue;
+                    }
+
+                    const validated = AIAnalysisSchema.safeParse(rawAiJSON);
+                    const data = validated.success ? validated.data : rawAiJSON;
 
                     // 4. Normalize metrics
                     const metrics = {
-                        github_score: Math.min(100, rawAiJSON.metrics?.github_score || 0),
-                        job_score: Math.min(100, rawAiJSON.metrics?.job_score || 0),
-                        stability_score: Math.min(100, rawAiJSON.metrics?.stability_score || 0)
+                        github_score: Math.min(100, data.metrics?.github_score || 0),
+                        job_score: Math.min(100, data.metrics?.job_score || 0),
+                        stability_score: Math.min(100, data.metrics?.stability_score || 0)
                     };
 
                     const finalAnalysis = {
-                        verdict: rawAiJSON.insight.verdict,
-                        explanation: rawAiJSON.insight.explanation,
-                        future_outlook: rawAiJSON.insight.future_outlook,
-                        sentiment_keywords: rawAiJSON.sentiment_keywords,
-                        tech_stack: rawAiJSON.tech_stack,
-                        roadmap: rawAiJSON.roadmap
+                        verdict: data.insight?.verdict || "Analysis Complete",
+                        explanation: data.insight?.explanation || "Strategic report generated.",
+                        future_outlook: data.insight?.future_outlook || "Stable market presence.",
+                        sentiment_keywords: data.sentiment_keywords || [],
+                        tech_stack: data.tech_stack || [],
+                        roadmap: data.roadmap || []
                     };
 
                     // 5. Update Database Cache

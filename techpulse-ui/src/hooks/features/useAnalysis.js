@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '../../services/apiService.js';
 
@@ -13,6 +13,14 @@ export const useAnalysis = (token, setActiveTab) => {
   const [streamingText, setStreamingText] = useState('');
   const [error, setError] = useState(null);
   const [isVersus, setIsVersus] = useState(false);
+
+  // Autocomplete Data
+  const { data: cachedNamesData } = useQuery({
+    queryKey: ['cachedTechNames'],
+    queryFn: () => api.fetchCachedTechNames(),
+    select: (data) => data.techNames || [],
+  });
+  const cachedTechNames = cachedNamesData || [];
 
   const analyzeTech = async (targetTech, setResultFn, setStreamFn) => {
     try {
@@ -79,6 +87,7 @@ export const useAnalysis = (token, setActiveTab) => {
 
   return {
     tech, setTech, tech2, setTech2, loading, result, result2, streamingText,
-    error, setError, isVersus, setIsVersus, handleAnalyze, startQuickAnalyze, resetAnalysis
+    error, setError, isVersus, setIsVersus, handleAnalyze, startQuickAnalyze, resetAnalysis,
+    cachedTechNames
   };
 };

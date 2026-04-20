@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useAuth } from './features/useAuth.js';
 import { useAnalysis } from './features/useAnalysis.js';
 import { useFeed } from './features/useFeed.js';
-import { useUserData } from './features/useUserData.js';
+import { useUserData, useUserInterests } from './features/useUserData.js';
 
 export const useTechPulse = () => {
   // Global App State
@@ -18,6 +18,7 @@ export const useTechPulse = () => {
   
   // Note: UserData needs 'token' to fetch info, and 'setAuthMode' to force login if an action fails
   const userDataState = useUserData(authState.token, authState.setAuthMode);
+  const userInterestsState = useUserInterests(authState.token);
 
   // Bundle everything together for App.jsx
   return {
@@ -26,6 +27,7 @@ export const useTechPulse = () => {
     ...analysisState,
     ...feedState,
     ...userDataState,
+    ...userInterestsState,
     
     // Global State
     activeTab, 
