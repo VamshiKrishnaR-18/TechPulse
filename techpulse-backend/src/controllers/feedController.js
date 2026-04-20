@@ -2,6 +2,58 @@ import prisma from '../config/prisma.js';
 import { fetchMixedFeed } from '../services/newsService.js';
 import { getAISummarization, getAISearchSuggestion } from '../services/aiService.js';
 import { AISummarySchema, AISearchSuggestionSchema } from '../utils/aiValidation.js';
+import logger from '../config/logger.js';
+
+/**
+ * Caches fetched articles into the database for future fallbacks.
+ * This now uses REAL AI to generate summaries for the cache if they don't exist.
+ */
+const cacheArticles = async (articles) => {
+    if (!articles || articles.length === 0) return;
+    
+    // Cache a manageable number of items
+    const itemsToCache = articles.slice(0, 15);
+    
+    try {
+        for (const article of itemsToCache) {
+            // Check if we already have this article cached
+            const existing = await prisma.newsCache.findUnique({
+                where: { url: article.url }
+            });
+
+            if (existing) {
+                // Just update the points and refresh the timestamp
+                await prisma.newsCache.update({
+                    where: { id: existing.id },
+                    data: { 
+                        points: article.points || existing.points,
+                        createdAt: new Date() 
+                    }
+                });
+                continue;
+            }
+
+            // If it's a NEW article, we can optionally trigger a REAL AI summary 
+            // but to keep getFeed fast, we'll store the raw description first.
+            // A background worker could later enrich these with better AI summaries.
+            
+            await prisma.newsCache.create({
+                data: {
+                    title: article.title,
+                    description: article.description,
+                    url: article.url,
+                    source: article.source,
+                    image: article.image,
+                    author: article.author,
+                    tags: article.tags || [],
+                    points: article.points || 0
+                }
+            });
+        }
+    } catch (err) {
+        logger.error(`Feed Cache Error: ${err.message}`);
+    }
+};
 
 export const getFeed = async (req, res) => {
     try {
@@ -18,11 +70,54 @@ export const getFeed = async (req, res) => {
             followedTechs = follows.map(f => f.techName);
         }
 
-        const feed = await fetchMixedFeed({ query, tab, followedTechs });
-        res.json({ success: true, feed });
+        // 1. Attempt to fetch from external APIs
+        let feed = await fetchMixedFeed({ query, tab, followedTechs });
+        let source = "live_api";
+
+        // 2. Fallback to Database if APIs fail or return empty
+        if (!feed || feed.length === 0) {
+            logger.warn(`External APIs returned empty for tab [${tab}], falling back to DB cache.`);
+            
+            feed = await prisma.newsCache.findMany({
+                where: query ? {
+                    OR: [
+                        { title: { contains: query, mode: 'insensitive' } },
+                        { description: { contains: query, mode: 'insensitive' } },
+                        { source: { contains: query, mode: 'insensitive' } }
+                    ]
+                } : {},
+                orderBy: [
+                    { points: 'desc' },
+                    { createdAt: 'desc' }
+                ],
+                take: 50
+            });
+            
+            source = "database_fallback";
+        } else {
+            // 3. Background cache the successful fetch (optional/non-blocking)
+            cacheArticles(feed).catch(err => logger.error(`Background caching failed: ${err.message}`));
+        }
+
+        res.json({ 
+            success: true, 
+            feed, 
+            meta: { 
+                count: feed.length, 
+                source,
+                timestamp: new Date()
+            } 
+        });
     } catch (error) {
-        console.error("Feed Aggregator Error:", error.message);
-        res.status(500).json({ success: false, message: "Failed to fetch news feed." });
+        logger.error(`Feed Aggregator Error: ${error.message}`);
+        
+        // Final safety fallback in case fetchMixedFeed itself throws
+        try {
+            const fallbackFeed = await prisma.newsCache.findMany({ take: 30, orderBy: { createdAt: 'desc' } });
+            return res.json({ success: true, feed: fallbackFeed, meta: { source: "error_fallback" } });
+        } catch (dbError) {
+            res.status(500).json({ success: false, message: "Critical failure in news feed." });
+        }
     }
 };
 

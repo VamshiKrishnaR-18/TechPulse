@@ -63,3 +63,17 @@ model SavedArticle {
   image     String?
   createdAt DateTime @default(now())
 }
+
+// Global News Cache for fallbacks
+model NewsCache {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  url         String   @unique
+  source      String
+  image       String?
+  author      String?
+  tags        String[]
+  points      Int      @default(0)
+  createdAt   DateTime @default(now())
+}
