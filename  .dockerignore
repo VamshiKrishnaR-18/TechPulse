@@ -1,0 +1,18 @@
+# Ignore node_modules from both directories
+techpulse-backend/node_modules
+techpulse-ui/node_modules
+
+# Ignore build output from both directories
+techpulse-backend/dist
+techpulse-ui/dist
+
+# Ignore logs and other artifacts
+techpulse-backend/logs
+techpulse-backend/coverage
+techpulse-ui/coverage
+*.log
+
+# Ignore local environment files
+.env
+.DS_Store
+.git

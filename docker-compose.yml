@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: techpulse-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: techpulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./techpulse-backend
+      dockerfile: Dockerfile
+    container_name: techpulse-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: "postgresql://postgres:password@db:5432/techpulse?schema=public"
+      JWT_SECRET: "your_super_secret_jwt_key_here"
+      NODE_ENV: production
+      PORT: 5000
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./techpulse-ui
+      dockerfile: Dockerfile
+    container_name: techpulse-frontend
+    restart: always
+    ports:
+      - "80:80"
+    environment:
+      VITE_API_URL: "http://localhost:5000/api"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
