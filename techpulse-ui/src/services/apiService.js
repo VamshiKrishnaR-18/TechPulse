@@ -12,6 +12,15 @@ const apiClient = axios.create({
   },
 });
 
+// 2. REQUEST INTERCEPTOR: Attach Bearer Token
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem("tp_token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // 3. RESPONSE INTERCEPTOR: Global Error Handling
 apiClient.interceptors.response.use(
   (response) => response.data,
@@ -57,9 +66,8 @@ export const api = {
   fetchAdminLogs: (type = "combined") =>
     apiClient.get("/admin/logs", {
       params: { type },
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("tp_token")}`,
-      },
     }),
   fetchCachedTechNames: () => apiClient.get("/cached-names"),
+  deleteArticle: (articleId) => apiClient.delete(`/save-article/${articleId}`),
+  clearHistory: () => apiClient.delete("/history"),
 };

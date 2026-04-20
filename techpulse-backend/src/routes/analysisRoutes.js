@@ -1,5 +1,5 @@
 import express from 'express';
-import { saveAnalysis, getHistory, getMetrics, streamAnalysis, toggleFollow, getFollowedTechs, getCachedTechNames } from '../controllers/analysisController.js';
+import { saveAnalysis, getHistory, getMetrics, streamAnalysis, toggleFollow, getFollowedTechs, getCachedTechNames, clearHistory } from '../controllers/analysisController.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { analysisQuerySchema, saveAnalysisSchema } from '../utils/validation.js';
@@ -18,6 +18,7 @@ router.get('/cached-names', getCachedTechNames);
 router.post('/follow/toggle', authenticateToken, toggleFollow);
 router.get('/follow/list', authenticateToken, getFollowedTechs);
 router.get('/history', optionalAuth, getHistory);
+router.delete('/history', authenticateToken, clearHistory);
 router.get('/metrics', getMetrics);
 router.get('/analyze/stream', validate(analysisQuerySchema), streamAnalysis);
 

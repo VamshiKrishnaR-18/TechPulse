@@ -257,6 +257,18 @@ export const getCachedTechNames = async (req, res) => {
     }
 };
 
+export const clearHistory = async (req, res) => {
+    const userId = req.user.userId;
+    try {
+        await prisma.savedAnalysis.deleteMany({
+            where: { userId }
+        });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(400).json({ success: false, message: "Clear history failed." });
+    }
+};
+
 export const streamAnalysis = async (req, res) => {
     const userTech = req.query.tech?.toLowerCase();
     if (!userTech) return res.status(400).json({ success: false, message: "Tech name required." });

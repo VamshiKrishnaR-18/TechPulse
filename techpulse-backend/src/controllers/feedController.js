@@ -115,3 +115,16 @@ export const suggestSearch = async (req, res) => {
         res.status(500).json({ success: false, message: "Failed to get suggestion." });
     }
 };
+
+export const deleteArticle = async (req, res) => {
+    const { articleId } = req.params;
+    const userId = req.user.userId;
+    try {
+        await prisma.savedArticle.delete({
+            where: { id: articleId, userId }
+        });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(400).json({ success: false, message: "Delete article failed." });
+    }
+};

@@ -12,6 +12,8 @@ import {
   X,
   LayoutDashboard,
   BookMarked,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useTechPulse } from "./hooks/useTechPulse";
 import Sidebar from "./components/layout/Sidebar";
@@ -78,6 +80,11 @@ function App() {
     resetAnalysis,
     history,
     cachedTechNames,
+    savedArticlesMeta,
+    savedArticlesPage,
+    setSavedArticlesPage,
+    followedTechs,
+    handleToggleFollow,
   } = useTechPulse();
 
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);

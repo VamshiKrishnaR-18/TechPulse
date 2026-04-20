@@ -78,6 +78,8 @@ export const useUserData = (token, setAuthMode) => {
     });
   };
 
+  const { followedTechs, handleToggleFollow } = useUserInterests(token);
+
   return {
     savedArticles, savedArticlesMeta, savedArticlesPage, setSavedArticlesPage,
     history, historyMeta, historyPage, setHistoryPage,
