@@ -194,7 +194,10 @@ export const streamAnalysis = async (req, res) => {
 
         const githubUrl = `https://api.github.com/search/repositories?q=${encodeURIComponent(userTech)}&sort=stars&order=desc`;
         const githubRes = await fetch(githubUrl, {
-            headers: { 'User-Agent': 'TechPulse/1.0.0' }
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/vnd.github.v3+json'
+            }
         });
         
         if (!githubRes.ok) {
@@ -208,7 +211,7 @@ export const streamAnalysis = async (req, res) => {
         try {
             githubData = JSON.parse(text);
         } catch (e) {
-            logger.error(`❌ GitHub Analysis JSON Parse Error: ${e.message}. Received: ${text.slice(0, 100)}...`);
+            logger.error(`❌ GitHub Analysis JSON Parse Error: ${e.message}. Snippet: ${text.slice(0, 100)}`);
             sendEvent({ success: false, message: "Failed to parse repository data." });
             return res.end();
         }
