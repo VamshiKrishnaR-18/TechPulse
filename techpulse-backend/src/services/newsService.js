@@ -128,26 +128,40 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
             points: child.data.ups || 0
         })) : [];
 
-        // 5. Merge & Sort (At least one success → return data)
+        // 5. Merge & Debug Logs
         const merged = [...hnPosts, ...githubPosts, ...devToPosts, ...redditPosts]
             .filter(item => item.title && item.url)
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-        logger.info(`🔍 Feed Success: HN(${hnPosts.length}), GH(${githubPosts.length}), DevTo(${devToPosts.length}), Reddit(${redditPosts.length})`);
+        // 🚀 CRITICAL DEBUG LOGS PER USER REQUEST
+        console.log("DEVTO:", devToPosts.length);
+        console.log("HN:", hnPosts.length);
+        console.log("REDDIT:", redditPosts.length);
+        console.log("GITHUB:", githubPosts.length);
+        console.log("MERGED:", merged.length);
 
-        // 6. Final Filter/Tab logic
+        // 6. Final Filter/Tab logic with Relaxed Matching
         if (!normalizedQuery) {
             if (tab === 'Trending') return [...merged].sort((a, b) => (b.points || 0) - (a.points || 0));
             if (tab === 'Recent') return [...merged].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             return merged;
         }
 
-        return merged.filter(item => {
+        const filtered = merged.filter(item => {
             const haystack = `${item.title} ${item.description} ${item.source} ${(item.tags || []).join(' ')}`.toLowerCase();
-            return haystack.includes(normalizedQuery);
+            // 🚀 RELAXED FILTERING PER USER REQUEST
+            return haystack.includes(normalizedQuery) || normalizedQuery.length < 3;
         });
+
+        // 🚀 FALLBACK TO MERGED IF FILTERING REMOVES EVERYTHING
+        if (filtered.length === 0 && merged.length > 0) {
+            logger.warn(`Filtering for [${normalizedQuery}] returned 0 items. Falling back to original merged feed.`);
+            return merged;
+        }
+
+        return filtered;
     } catch (error) {
         logger.error('CRITICAL: Mixed Feed Aggregator Failed:', error.message);
-        return []; // Only return empty if everything fails
+        return []; 
     }
 };
