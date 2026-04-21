@@ -1,110 +1,89 @@
+import logger from '../config/logger.js';
+
+/**
+ * Robust fetch helper with proper headers and error handling.
+ * Prevents cloud IP blocking by using realistic User-Agent strings.
+ */
+const fetchWithHeaders = async (url, options = {}) => {
+    const defaultHeaders = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+    };
+
+    const res = await fetch(url, {
+        ...options,
+        headers: { ...defaultHeaders, ...options.headers }
+    });
+
+    if (!res.ok) {
+        // Silence known 403s for Reddit in CI/Cloud to keep logs clean
+        if (res.status === 403 && url.includes('reddit.com')) {
+            return null;
+        }
+        logger.warn(`⚠️ External API Error [${res.status}] for ${url}`);
+        return null;
+    }
+
+    const text = await res.text();
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        logger.error(`❌ JSON Parse Error for ${url}: ${e.message}. Snippet: ${text.slice(0, 100)}`);
+        return null;
+    }
+};
+
 export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTechs = [] } = {}) => {
     try {
         const normalizedQuery = query.trim().toLowerCase();
         
         // 1. Determine search terms
         let searchTerms = normalizedQuery;
-        
-        // If "For You" and user follows techs, and NO explicit search query is provided
         if (tab === 'For You' && followedTechs.length > 0 && !normalizedQuery) {
-            // Pick a few random followed techs or join them to broaden the feed
             searchTerms = followedTechs.join(' OR ');
         }
 
         const firstKeyword = searchTerms.split(/\s+/).filter(Boolean)[0] || '';
         
-        const devToUrl = searchTerms
-            ? `https://dev.to/api/articles?per_page=25&tag=${encodeURIComponent(firstKeyword)}`
-            : 'https://dev.to/api/articles?per_page=30&top=7';
-        
-        const hnUrl = searchTerms
-            ? `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(searchTerms)}&tags=story&hitsPerPage=30`
-            : 'https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=30';
-        
-        const redditUrl = searchTerms
-            ? `https://www.reddit.com/r/programming/search.json?q=${encodeURIComponent(searchTerms)}&restrict_sr=1&sort=hot&limit=30`
-            : 'https://www.reddit.com/r/programming/hot.json?limit=30';
-
-        const githubUrl = searchTerms
-            ? `https://api.github.com/search/repositories?q=${encodeURIComponent(searchTerms)}+sort:stars&per_page=30`
-            : `https://api.github.com/search/repositories?q=created:>${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}+sort:stars&per_page=30`;
-
-        const [devToRes, hnRes, redditRes, githubRes] = await Promise.all([
-            fetch(devToUrl),
-            fetch(hnUrl),
-            fetch(redditUrl, {
-                headers: { 'User-Agent': 'TechPulse/1.0.0 (by /u/TechPulseAdmin)' }
-            }),
-            fetch(githubUrl, {
-                headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'TechPulse/1.0.0' }
-            })
-        ]);
-
-        const safeJson = async (res, url) => {
-            try {
-                if (!res.ok) {
-                    // Silence Reddit 403s in CI to keep logs clean, as it's a known environment block
-                    if (res.status === 403 && url.includes('reddit.com')) {
-                        return null;
-                    }
-                    console.warn(`⚠️ API Response NOT OK [${res.status}] for ${url}`);
-                    return null;
-                }
-                const text = await res.text();
-                try {
-                    return JSON.parse(text);
-                } catch (e) {
-                    console.error(`❌ JSON Parse Error for ${url}: ${e.message}. Received: ${text.slice(0, 100)}...`);
-                    return null;
-                }
-            } catch (e) {
-                console.error(`❌ Fetch/Read Error for ${url}: ${e.message}`);
-                return null;
-            }
+        // 2. Define API URLs
+        const urls = {
+            hn: searchTerms
+                ? `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(searchTerms)}&tags=story&hitsPerPage=30`
+                : 'https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=30',
+            github: searchTerms
+                ? `https://api.github.com/search/repositories?q=${encodeURIComponent(searchTerms)}+sort:stars&per_page=30`
+                : `https://api.github.com/search/repositories?q=created:>${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}+sort:stars&per_page=30`,
+            devto: searchTerms
+                ? `https://dev.to/api/articles?per_page=25&tag=${encodeURIComponent(firstKeyword)}`
+                : 'https://dev.to/api/articles?per_page=30&top=7',
+            reddit: searchTerms
+                ? `https://www.reddit.com/r/programming/search.json?q=${encodeURIComponent(searchTerms)}&restrict_sr=1&sort=hot&limit=30`
+                : 'https://www.reddit.com/r/programming/hot.json?limit=30'
         };
 
-        const devToData = await safeJson(devToRes, devToUrl);
-        const hnData = await safeJson(hnRes, hnUrl);
-        const redditData = await safeJson(redditRes, redditUrl);
-        const githubData = await safeJson(githubRes, githubUrl);
+        // 3. Fetch data from all sources in parallel
+        // HackerNews and GitHub are prioritized (stable), Dev.to and Reddit are secondary.
+        const [hnData, githubData, devToData, redditData] = await Promise.all([
+            fetchWithHeaders(urls.hn),
+            fetchWithHeaders(urls.github, { headers: { 'Accept': 'application/vnd.github.v3+json' } }),
+            fetchWithHeaders(urls.devto),
+            fetchWithHeaders(urls.reddit)
+        ]);
 
-        const devToPosts = Array.isArray(devToData) ? devToData.map(post => ({
-            id: `devto-${post.id}`,
-            title: post.title,
-            description: post.description || '',
-            url: post.url,
-            image: post.cover_image || post.social_image,
-            source: 'Dev.to',
-            author: post.user?.name || 'unknown',
-            tags: post.tag_list || [],
-            createdAt: post.published_at,
-            points: post.public_reactions_count || 0
-        })) : [];
-
+        // 4. Map and normalize data from each source
         const hnPosts = Array.isArray(hnData?.hits) ? hnData.hits.map(hit => ({
             id: `hn-${hit.objectID}`,
             title: hit.title || hit.story_title || 'Untitled',
             description: `Discussion on HackerNews with ${hit.num_comments || 0} comments.`,
             url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
-            image: null,
             source: 'HackerNews',
             author: hit.author || 'unknown',
             tags: ['news', 'trending'],
             createdAt: hit.created_at,
             points: hit.points || 0
-        })) : [];
-
-        const redditPosts = Array.isArray(redditData?.data?.children) ? redditData.data.children.map(child => ({
-            id: `reddit-${child.data.id}`,
-            title: child.data.title,
-            description: `Hot on r/${child.data.subreddit}`,
-            url: `https://reddit.com${child.data.permalink}`,
-            image: child.data.thumbnail?.startsWith('http') ? child.data.thumbnail : null,
-            source: `r/${child.data.subreddit}`,
-            author: child.data.author,
-            tags: ['reddit', child.data.subreddit],
-            createdAt: new Date(child.data.created_utc * 1000).toISOString(),
-            points: child.data.ups || 0
         })) : [];
 
         const githubPosts = Array.isArray(githubData?.items) ? githubData.items.map(item => ({
@@ -120,10 +99,38 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
             points: item.stargazers_count || 0
         })) : [];
 
-        const merged = [...devToPosts, ...hnPosts, ...redditPosts, ...githubPosts]
+        const devToPosts = Array.isArray(devToData) ? devToData.map(post => ({
+            id: `devto-${post.id}`,
+            title: post.title,
+            description: post.description || '',
+            url: post.url,
+            image: post.cover_image || post.social_image,
+            source: 'Dev.to',
+            author: post.user?.name || 'unknown',
+            tags: post.tag_list || [],
+            createdAt: post.published_at,
+            points: post.public_reactions_count || 0
+        })) : [];
+
+        const redditPosts = Array.isArray(redditData?.data?.children) ? redditData.data.children.map(child => ({
+            id: `reddit-${child.data.id}`,
+            title: child.data.title,
+            description: `Hot on r/${child.data.subreddit}`,
+            url: `https://reddit.com${child.data.permalink}`,
+            image: child.data.thumbnail?.startsWith('http') ? child.data.thumbnail : null,
+            source: `r/${child.data.subreddit}`,
+            author: child.data.author,
+            tags: ['reddit', child.data.subreddit],
+            createdAt: new Date(child.data.created_utc * 1000).toISOString(),
+            points: child.data.ups || 0
+        })) : [];
+
+        // 5. Merge and sort
+        const merged = [...hnPosts, ...githubPosts, ...devToPosts, ...redditPosts]
             .filter(item => item.title && item.url)
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+        // 6. Apply filtering/sorting based on tab
         if (!normalizedQuery) {
             if (tab === 'Trending') {
                 return [...merged].sort((a, b) => (b.points || 0) - (a.points || 0));
@@ -139,7 +146,7 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
             return haystack.includes(normalizedQuery);
         });
     } catch (error) {
-        console.error('Mixed Feed Fetch Error:', error.message);
+        logger.error('Mixed Feed Fetch Error:', error.message);
         return [];
     }
 };
