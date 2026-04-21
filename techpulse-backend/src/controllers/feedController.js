@@ -125,7 +125,11 @@ export const summarizeArticle = async (req, res) => {
 
         res.json({ success: true, ...data, techMetrics });
     } catch (error) {
-        console.error("Summarizer Error:", error.message);
+        if (process.env.NODE_ENV === 'test' && error.message.includes('401')) {
+            logger.warn("AI Summarization: Skipped (Missing/Invalid API Key)");
+        } else {
+            console.error("Summarizer Error:", error.message);
+        }
         // Fallback to original content if AI fails, keeping it "real"
         res.json({ 
             success: true, 
@@ -193,7 +197,12 @@ export const suggestSearch = async (req, res) => {
         const validated = AISearchSuggestionSchema.safeParse(result);
         res.json({ success: true, ...(validated.success ? validated.data : result) });
     } catch (error) {
-        console.error("Search Suggestion Error:", error.message);
+        if (process.env.NODE_ENV === 'test' && error.message.includes('401')) {
+            // Quiet warning for missing keys in CI
+            logger.warn("AI Search Suggestion: Skipped (Missing/Invalid API Key)");
+        } else {
+            console.error("Search Suggestion Error:", error.message);
+        }
         // Per user request: no mock service, but we return a valid response using the original query if AI fails
         res.json({ success: true, suggestedQuery: query });
     }

@@ -43,6 +43,10 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
         const safeJson = async (res, url) => {
             try {
                 if (!res.ok) {
+                    // Silence Reddit 403s in CI to keep logs clean, as it's a known environment block
+                    if (res.status === 403 && url.includes('reddit.com')) {
+                        return null;
+                    }
                     console.warn(`⚠️ API Response NOT OK [${res.status}] for ${url}`);
                     return null;
                 }
