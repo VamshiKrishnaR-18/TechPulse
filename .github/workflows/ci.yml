@@ -1,80 +1,41 @@
-name: TechPulse CI
+name: TechPulse CI/CD
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
 
 jobs:
-  backend:
+  deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./techpulse-backend
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      DATABASE_URL: "postgresql://test:test@localhost:5432/test"
-      JWT_SECRET: "test-secret"
-      GROQ_API_KEY: "test-key"
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.0
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: './techpulse-backend/package-lock.json'
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/TechPulse/techpulse-backend || exit
 
-      - name: Install dependencies
-        run: npm install
+            echo "📥 Pulling latest code..."
+            git pull origin main
 
-      - name: Run Database Push
-        run: npx prisma db push
+            echo "🐳 Rebuilding Docker..."
+            docker build --no-cache -t techpulse .
 
-      - name: Generate Prisma Client
-        run: npx prisma generate
-  
-      - name: Run Lint
-        run: npm run lint || echo "Linting skipped"
-  
-      - name: Run Tests
-        run: npm test
-  frontend:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./techpulse-ui
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: './techpulse-ui/package-lock.json'
-      - name: Install dependencies
-        run: npm install
-      - name: Run Lint
-        run: npm run lint || echo "Linting skipped"
-      - name: Build
-        run: npm run build
-      - name: Run Tests
-        run: npm test || echo "Tests skipped"
+            echo "🛑 Stopping old container..."
+            docker stop techpulse-container || true
+            docker rm techpulse-container || true
+
+            echo "🚀 Starting new container..."
+            docker run -d -p 5000:5000 \
+              -e GROQ_API_KEY=$GROQ_API_KEY \
+              -e DATABASE_URL=$DATABASE_URL \
+              -e JWT_SECRET=$JWT_SECRET \
+              --name techpulse-container techpulse
+
+            echo "✅ Deployment complete"
