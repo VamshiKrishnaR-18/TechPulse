@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 
 const SECRET_KEY = process.env.JWT_SECRET;
 
-if (!SECRET_KEY) {
+if (!SECRET_KEY && process.env.NODE_ENV !== 'test') {
     throw new Error("JWT_SECRET not defined in environment");
 }
 
