@@ -29,6 +29,7 @@ export const signup = async (req, res) => {
     });
     res.status(201).json({ success: true, token, user: { email: user.email, role: user.role } });
   } catch (e) {
+    console.error("Signup Error Details:", e.message, e.stack);
     res.status(400).json({
       success: false,
       message: "User already exists or signup failed.",
@@ -61,6 +62,7 @@ export const login = async (req, res) => {
       res.status(401).json({ success: false, message: "Invalid credentials." });
     }
   } catch (e) {
+    console.error("Login Error Details:", e.message, e.stack);
     res.status(500).json({ success: false, message: "Login failed." });
   }
 };

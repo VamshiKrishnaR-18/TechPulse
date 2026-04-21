@@ -184,7 +184,8 @@ export const suggestSearch = async (req, res) => {
         res.json({ success: true, ...(validated.success ? validated.data : result) });
     } catch (error) {
         console.error("Search Suggestion Error:", error.message);
-        res.status(500).json({ success: false, message: "Failed to get suggestion." });
+        // Per user request: no mock service, but we return a valid response using the original query if AI fails
+        res.json({ success: true, suggestedQuery: query });
     }
 };
 
