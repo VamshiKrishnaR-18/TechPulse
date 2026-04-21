@@ -76,25 +76,33 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
             fetchSafe(urls.reddit)
         ]);
 
-        // 4. Safe Mapping (Handle Nulls)
-        const hnPosts = Array.isArray(hnData?.hits) ? hnData.hits.map(hit => ({
-            id: `hn-${hit.objectID}`,
-            title: hit.title || hit.story_title || 'Untitled',
-            description: `Discussion on HackerNews with ${hit.num_comments || 0} comments.`,
-            url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
-            source: 'HackerNews',
-            author: hit.author || 'unknown',
-            tags: ['news', 'trending'],
-            createdAt: hit.created_at,
-            points: hit.points || 0
-        })) : [];
+        // 4. Safe Mapping (Handle Nulls & Extract Images)
+        const hnPosts = Array.isArray(hnData?.hits) ? hnData.hits.map(hit => {
+            // HackerNews doesn't provide images directly. 
+            // We use a high-quality placeholder service based on the source domain or a tech category
+            const domain = hit.url ? new URL(hit.url).hostname : 'news.ycombinator.com';
+            const imageUrl = `https://unavatar.io/duckduckgo/${domain}`;
+
+            return {
+                id: `hn-${hit.objectID}`,
+                title: hit.title || hit.story_title || 'Untitled',
+                description: `Discussion on HackerNews with ${hit.num_comments || 0} comments.`,
+                url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
+                image: imageUrl, // Dynamic domain-based icon
+                source: 'HackerNews',
+                author: hit.author || 'unknown',
+                tags: ['news', 'trending'],
+                createdAt: hit.created_at,
+                points: hit.points || 0
+            };
+        }) : [];
 
         const githubPosts = Array.isArray(githubData?.items) ? githubData.items.map(item => ({
             id: `github-${item.id}`,
             title: item.full_name,
             description: item.description || 'Trending repository on GitHub.',
             url: item.html_url,
-            image: item.owner?.avatar_url || null,
+            image: item.owner?.avatar_url || `https://opengraph.githubassets.com/1/${item.full_name}`, // Use OG image if possible
             source: 'GitHub',
             author: item.owner?.login || 'unknown',
             tags: ['github', item.language || 'code', 'trending'],
@@ -107,7 +115,7 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
             title: post.title,
             description: post.description || '',
             url: post.url,
-            image: post.cover_image || post.social_image,
+            image: post.cover_image || post.social_image || `https://unavatar.io/devto/${post.user?.username}`,
             source: 'Dev.to',
             author: post.user?.name || 'unknown',
             tags: post.tag_list || [],
@@ -115,18 +123,25 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
             points: post.public_reactions_count || 0
         })) : [];
 
-        const redditPosts = Array.isArray(redditData?.data?.children) ? redditData.data.children.map(child => ({
-            id: `reddit-${child.data.id}`,
-            title: child.data.title,
-            description: `Hot on r/${child.data.subreddit}`,
-            url: `https://reddit.com${child.data.permalink}`,
-            image: child.data.thumbnail?.startsWith('http') ? child.data.thumbnail : null,
-            source: `r/${child.data.subreddit}`,
-            author: child.data.author,
-            tags: ['reddit', child.data.subreddit],
-            createdAt: new Date(child.data.created_utc * 1000).toISOString(),
-            points: child.data.ups || 0
-        })) : [];
+        const redditPosts = Array.isArray(redditData?.data?.children) ? redditData.data.children.map(child => {
+            const data = child.data;
+            // Reddit thumbnails are often 'self', 'default', or 'nsfw'. Filter those out.
+            const hasRealThumbnail = data.thumbnail && data.thumbnail.startsWith('http');
+            const redditImage = hasRealThumbnail ? data.thumbnail : `https://unavatar.io/reddit/${data.subreddit}`;
+
+            return {
+                id: `reddit-${data.id}`,
+                title: data.title,
+                description: `Hot on r/${data.subreddit}`,
+                url: `https://reddit.com${data.permalink}`,
+                image: redditImage,
+                source: `r/${data.subreddit}`,
+                author: data.author,
+                tags: ['reddit', data.subreddit],
+                createdAt: new Date(data.created_utc * 1000).toISOString(),
+                points: data.ups || 0
+            };
+        }) : [];
 
         // 5. Merge & Debug Logs
         const merged = [...hnPosts, ...githubPosts, ...devToPosts, ...redditPosts]
