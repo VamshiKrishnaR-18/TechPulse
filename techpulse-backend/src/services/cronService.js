@@ -13,9 +13,15 @@ export const initCronJobs = () => {
             for (const record of allRecords) {
                 const userTech = record.techName;
                 try {
-                    const githubRes = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(userTech)}&sort=stars&order=desc`);
+                    const githubRes = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(userTech)}&sort=stars&order=desc`, {
+                        headers: { 'User-Agent': 'TechPulse/1.0.0' }
+                    });
+                    if (!githubRes.ok) {
+                        logger.warn(`❌ GitHub API Error [${githubRes.status}] for [${userTech}]`);
+                        continue;
+                    }
                     const githubData = await githubRes.json();
-                    if (!githubData.items?.length) continue;
+                    if (!githubData?.items?.length) continue;
                     const topRepo = githubData.items[0];
 
                     const sentiment = await fetchSentiment(userTech);

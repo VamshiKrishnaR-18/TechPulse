@@ -32,7 +32,8 @@ const router = express.Router();
  *         description: Validation error
  */
 router.post('/signup', validate(authSchema), signup);
-router.post('/register', validate(authSchema), signup); // Alias for signup
+router.post('/register', validate(authSchema), signup);
+router.post('/register', registerUser); // Alias for signup
 
 /**
  * @swagger

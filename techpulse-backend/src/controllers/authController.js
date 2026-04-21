@@ -7,14 +7,6 @@ const SECRET_KEY = process.env.JWT_SECRET || "techpulse_secret";
 export const signup = async (req, res) => {
   const { email, password } = req.body;
 
-  if (process.env.NODE_ENV === "test") {
-    return res.status(201).json({
-      success: true,
-      token: "mock-token",
-      user: { email, role: "USER" }
-    });
-  }
-
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const isFirstUser = (await prisma.user.count()) === 0;
@@ -46,17 +38,6 @@ export const signup = async (req, res) => {
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
-
-  if (process.env.NODE_ENV === "test") {
-    if (password === "wrongpassword") {
-      return res.status(401).json({ success: false, message: "Invalid credentials." });
-    }
-    return res.json({
-      success: true,
-      token: "mock-token",
-      user: { email, role: "USER" }
-    });
-  }
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });

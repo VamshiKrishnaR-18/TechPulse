@@ -22,12 +22,16 @@ export const fetchSentiment = async (tech) => {
     try {
         console.log(`🔍 Scraping developer sentiment for [${tech}]...`);
         const hnRes = await fetch(`https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(tech)}&tags=comment&hitsPerPage=3`);
+        
+        if (!hnRes.ok) return [];
+        
         const hnData = await hnRes.json();
+        if (!hnData || !Array.isArray(hnData.hits)) return [];
         
         return hnData.hits.map(hit => ({
-            text: hit.comment_text.replace(/<[^>]*>/g, '').slice(0, 300),
+            text: (hit.comment_text || '').replace(/<[^>]*>/g, '').slice(0, 300),
             source: "HackerNews",
-            author: hit.author
+            author: hit.author || 'unknown'
         }));
     } catch (error) {
         console.error("Sentiment Scraping Failed:", error.message);

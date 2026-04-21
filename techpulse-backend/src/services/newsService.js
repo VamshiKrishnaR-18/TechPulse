@@ -1,17 +1,4 @@
 export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTechs = [] } = {}) => {
-    if (process.env.NODE_ENV === "test") {
-        return [
-            {
-                id: "mock-1",
-                title: "Mock Feed Item",
-                description: "Test data",
-                url: "https://example.com",
-                source: "Test",
-                createdAt: new Date().toISOString(),
-                points: 10
-            }
-        ];
-    }
     try {
         const normalizedQuery = query.trim().toLowerCase();
         
@@ -53,20 +40,29 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
             })
         ]);
 
-        // Safe JSON parsing helper
-        const safeJson = async (res) => {
+        const safeJson = async (res, url) => {
             try {
-                if (!res.ok) return null;
-                return await res.json();
+                if (!res.ok) {
+                    console.warn(`⚠️ API Response NOT OK [${res.status}] for ${url}`);
+                    return null;
+                }
+                const text = await res.text();
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    console.error(`❌ JSON Parse Error for ${url}: ${e.message}. Received: ${text.slice(0, 100)}...`);
+                    return null;
+                }
             } catch (e) {
+                console.error(`❌ Fetch/Read Error for ${url}: ${e.message}`);
                 return null;
             }
         };
 
-        const devToData = await safeJson(devToRes);
-        const hnData = await safeJson(hnRes);
-        const redditData = await safeJson(redditRes);
-        const githubData = await safeJson(githubRes);
+        const devToData = await safeJson(devToRes, devToUrl);
+        const hnData = await safeJson(hnRes, hnUrl);
+        const redditData = await safeJson(redditRes, redditUrl);
+        const githubData = await safeJson(githubRes, githubUrl);
 
         const devToPosts = Array.isArray(devToData) ? devToData.map(post => ({
             id: `devto-${post.id}`,
@@ -81,7 +77,7 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
             points: post.public_reactions_count || 0
         })) : [];
 
-        const hnPosts = Array.isArray(hnData.hits) ? hnData.hits.map(hit => ({
+        const hnPosts = Array.isArray(hnData?.hits) ? hnData.hits.map(hit => ({
             id: `hn-${hit.objectID}`,
             title: hit.title || hit.story_title || 'Untitled',
             description: `Discussion on HackerNews with ${hit.num_comments || 0} comments.`,

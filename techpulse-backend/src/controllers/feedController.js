@@ -39,24 +39,6 @@ const cacheArticles = async (articles, userId) => {
 };
 
 export const getFeed = async (req, res) => {
-    if (process.env.NODE_ENV === "test") {
-        return res.json({
-            success: true,
-            feed: [
-                {
-                    id: "mock-1",
-                    title: "Mock Feed Item",
-                    description: "Test data",
-                    url: "https://example.com",
-                    source: "Test",
-                    createdAt: new Date().toISOString(),
-                    points: 10
-                }
-            ],
-            meta: { source: "mock_test" }
-        });
-    }
-
     try {
         const query = typeof req.query.q === 'string' ? req.query.q : '';
         const tab = typeof req.query.tab === 'string' ? req.query.tab : 'For You';
@@ -195,10 +177,6 @@ export const getSavedArticles = async (req, res) => {
 export const suggestSearch = async (req, res) => {
     const { query } = req.query;
     if (!query) return res.json({ success: true, suggestedQuery: '' });
-
-    if (process.env.NODE_ENV === "test") {
-        return res.json({ success: true, suggestedQuery: `${query} mock suggestion` });
-    }
 
     try {
         const result = await getAISearchSuggestion(query);
