@@ -1,37 +1,42 @@
 import logger from '../config/logger.js';
 
 /**
- * Robust fetch helper with proper headers and error handling.
- * Prevents cloud IP blocking by using realistic User-Agent strings.
+ * 🚀 fetchSafe Helper
+ * Fault-tolerant fetch that handles network errors, invalid JSON, and bot-blocking.
+ * Returns null instead of throwing, allowing other APIs to succeed.
  */
-const fetchWithHeaders = async (url, options = {}) => {
+const fetchSafe = async (url, options = {}) => {
     const defaultHeaders = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
+        'Accept-Language': 'en-US,en;q=0.9'
     };
 
-    const res = await fetch(url, {
-        ...options,
-        headers: { ...defaultHeaders, ...options.headers }
-    });
+    try {
+        const res = await fetch(url, {
+            ...options,
+            headers: { ...defaultHeaders, ...options.headers },
+            // Add a timeout to prevent hanging requests in cloud environment
+            signal: AbortSignal.timeout(8000) 
+        });
 
-    if (!res.ok) {
-        // Silence known 403s for Reddit in CI/Cloud to keep logs clean
-        if (res.status === 403 && url.includes('reddit.com')) {
+        if (!res.ok) {
+            // Log warning but don't throw; Reddit 403s are common on cloud IPs
+            if (!(res.status === 403 && url.includes('reddit.com'))) {
+                logger.warn(`⚠️ External API Error [${res.status}] for ${url}`);
+            }
             return null;
         }
-        logger.warn(`⚠️ External API Error [${res.status}] for ${url}`);
-        return null;
-    }
 
-    const text = await res.text();
-    try {
-        return JSON.parse(text);
-    } catch (e) {
-        logger.error(`❌ JSON Parse Error for ${url}: ${e.message}. Snippet: ${text.slice(0, 100)}`);
+        const text = await res.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            logger.error(`❌ JSON Parse Error for ${url}: ${e.message}. Snippet: ${text.slice(0, 100)}`);
+            return null;
+        }
+    } catch (error) {
+        logger.error(`📡 Network/Timeout Error for ${url}: ${error.message}`);
         return null;
     }
 };
@@ -40,22 +45,21 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
     try {
         const normalizedQuery = query.trim().toLowerCase();
         
-        // 1. Determine search terms
+        // 1. Prepare search terms
         let searchTerms = normalizedQuery;
         if (tab === 'For You' && followedTechs.length > 0 && !normalizedQuery) {
             searchTerms = followedTechs.join(' OR ');
         }
-
         const firstKeyword = searchTerms.split(/\s+/).filter(Boolean)[0] || '';
         
-        // 2. Define API URLs
+        // 2. Define source URLs
         const urls = {
             hn: searchTerms
                 ? `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(searchTerms)}&tags=story&hitsPerPage=30`
                 : 'https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=30',
             github: searchTerms
-                ? `https://api.github.com/search/repositories?q=${encodeURIComponent(searchTerms)}+sort:stars&per_page=30`
-                : `https://api.github.com/search/repositories?q=created:>${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}+sort:stars&per_page=30`,
+                ? `https://api.github.com/search/repositories?q=${encodeURIComponent(searchTerms)}&sort=stars&order=desc&per_page=30`
+                : `https://api.github.com/search/repositories?q=created:>${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}&sort=stars&order=desc&per_page=30`,
             devto: searchTerms
                 ? `https://dev.to/api/articles?per_page=25&tag=${encodeURIComponent(firstKeyword)}`
                 : 'https://dev.to/api/articles?per_page=30&top=7',
@@ -64,16 +68,15 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
                 : 'https://www.reddit.com/r/programming/hot.json?limit=30'
         };
 
-        // 3. Fetch data from all sources in parallel
-        // HackerNews and GitHub are prioritized (stable), Dev.to and Reddit are secondary.
+        // 3. Parallel Fetch (Fail-Independent)
         const [hnData, githubData, devToData, redditData] = await Promise.all([
-            fetchWithHeaders(urls.hn),
-            fetchWithHeaders(urls.github, { headers: { 'Accept': 'application/vnd.github.v3+json' } }),
-            fetchWithHeaders(urls.devto),
-            fetchWithHeaders(urls.reddit)
+            fetchSafe(urls.hn),
+            fetchSafe(urls.github, { headers: { 'Accept': 'application/vnd.github.v3+json' } }),
+            fetchSafe(urls.devto),
+            fetchSafe(urls.reddit)
         ]);
 
-        // 4. Map and normalize data from each source
+        // 4. Safe Mapping (Handle Nulls)
         const hnPosts = Array.isArray(hnData?.hits) ? hnData.hits.map(hit => ({
             id: `hn-${hit.objectID}`,
             title: hit.title || hit.story_title || 'Untitled',
@@ -125,19 +128,17 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
             points: child.data.ups || 0
         })) : [];
 
-        // 5. Merge and sort
+        // 5. Merge & Sort (At least one success → return data)
         const merged = [...hnPosts, ...githubPosts, ...devToPosts, ...redditPosts]
             .filter(item => item.title && item.url)
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-        // 6. Apply filtering/sorting based on tab
+        logger.info(`🔍 Feed Success: HN(${hnPosts.length}), GH(${githubPosts.length}), DevTo(${devToPosts.length}), Reddit(${redditPosts.length})`);
+
+        // 6. Final Filter/Tab logic
         if (!normalizedQuery) {
-            if (tab === 'Trending') {
-                return [...merged].sort((a, b) => (b.points || 0) - (a.points || 0));
-            }
-            if (tab === 'Recent') {
-                return [...merged].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-            }
+            if (tab === 'Trending') return [...merged].sort((a, b) => (b.points || 0) - (a.points || 0));
+            if (tab === 'Recent') return [...merged].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             return merged;
         }
 
@@ -146,7 +147,7 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
             return haystack.includes(normalizedQuery);
         });
     } catch (error) {
-        logger.error('Mixed Feed Fetch Error:', error.message);
-        return [];
+        logger.error('CRITICAL: Mixed Feed Aggregator Failed:', error.message);
+        return []; // Only return empty if everything fails
     }
 };

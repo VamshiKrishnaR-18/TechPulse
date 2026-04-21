@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">6.89% </span>
+                <span class="strong">6.34% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>8/116</span>
+                <span class='fraction'>8/126</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/52</span>
+                <span class='fraction'>0/54</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">7.33% </span>
+                <span class="strong">6.72% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>8/109</span>
+                <span class='fraction'>8/119</span>
             </div>
         
             
@@ -325,7 +325,29 @@
 <a name='L260'></a><a href='#L260'>260</a>
 <a name='L261'></a><a href='#L261'>261</a>
 <a name='L262'></a><a href='#L262'>262</a>
-<a name='L263'></a><a href='#L263'>263</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L263'></a><a href='#L263'>263</a>
+<a name='L264'></a><a href='#L264'>264</a>
+<a name='L265'></a><a href='#L265'>265</a>
+<a name='L266'></a><a href='#L266'>266</a>
+<a name='L267'></a><a href='#L267'>267</a>
+<a name='L268'></a><a href='#L268'>268</a>
+<a name='L269'></a><a href='#L269'>269</a>
+<a name='L270'></a><a href='#L270'>270</a>
+<a name='L271'></a><a href='#L271'>271</a>
+<a name='L272'></a><a href='#L272'>272</a>
+<a name='L273'></a><a href='#L273'>273</a>
+<a name='L274'></a><a href='#L274'>274</a>
+<a name='L275'></a><a href='#L275'>275</a>
+<a name='L276'></a><a href='#L276'>276</a>
+<a name='L277'></a><a href='#L277'>277</a>
+<a name='L278'></a><a href='#L278'>278</a>
+<a name='L279'></a><a href='#L279'>279</a>
+<a name='L280'></a><a href='#L280'>280</a>
+<a name='L281'></a><a href='#L281'>281</a>
+<a name='L282'></a><a href='#L282'>282</a>
+<a name='L283'></a><a href='#L283'>283</a>
+<a name='L284'></a><a href='#L284'>284</a>
+<a name='L285'></a><a href='#L285'>285</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -521,6 +543,28 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -781,8 +825,30 @@ export const streamAnalysis = <span class="fstat-no" title="function not covered
 <span class="cstat-no" title="statement not covered" >            return res.end();</span>
         }
 &nbsp;
-        const githubRes = <span class="cstat-no" title="statement not covered" >await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(userTech)}&amp;sort=stars&amp;order=desc`);</span>
-        const githubData = <span class="cstat-no" title="statement not covered" >await githubRes.json();</span>
+        const githubUrl = <span class="cstat-no" title="statement not covered" >`https://api.github.com/search/repositories?q=${encodeURIComponent(userTech)}&amp;sort=stars&amp;order=desc`;</span>
+        const githubRes = <span class="cstat-no" title="statement not covered" >await fetch(githubUrl, {</span>
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        
+<span class="cstat-no" title="statement not covered" >        if (!githubRes.ok) {</span>
+<span class="cstat-no" title="statement not covered" >            logger.warn(`❌ GitHub Analysis API Error [${githubRes.status}] for ${githubUrl}`);</span>
+<span class="cstat-no" title="statement not covered" >            sendEvent({ success: false, message: "GitHub data currently unavailable." });</span>
+<span class="cstat-no" title="statement not covered" >            return res.end();</span>
+        }
+&nbsp;
+        const text = <span class="cstat-no" title="statement not covered" >await githubRes.text();</span>
+        let githubData;
+<span class="cstat-no" title="statement not covered" >        try {</span>
+<span class="cstat-no" title="statement not covered" >            githubData = JSON.parse(text);</span>
+        } catch (e) {
+<span class="cstat-no" title="statement not covered" >            logger.error(`❌ GitHub Analysis JSON Parse Error: ${e.message}. Snippet: ${text.slice(0, 100)}`);</span>
+<span class="cstat-no" title="statement not covered" >            sendEvent({ success: false, message: "Failed to parse repository data." });</span>
+<span class="cstat-no" title="statement not covered" >            return res.end();</span>
+        }
+&nbsp;
 <span class="cstat-no" title="statement not covered" >        if (!githubData.items?.length) {</span>
 <span class="cstat-no" title="statement not covered" >            sendEvent({ success: false, message: "No GitHub data found." });</span>
 <span class="cstat-no" title="statement not covered" >            return res.end();</span>
@@ -856,7 +922,7 @@ export const streamAnalysis = <span class="fstat-no" title="function not covered
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-04-21T14:26:02.487Z
+                at 2026-04-21T15:08:37.595Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

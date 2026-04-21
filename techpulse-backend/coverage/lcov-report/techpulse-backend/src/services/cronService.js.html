@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">2.63% </span>
+                <span class="strong">2.32% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>1/38</span>
+                <span class='fraction'>1/43</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">2.77% </span>
+                <span class="strong">2.43% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>1/36</span>
+                <span class='fraction'>1/41</span>
             </div>
         
             
@@ -152,7 +152,17 @@
 <a name='L87'></a><a href='#L87'>87</a>
 <a name='L88'></a><a href='#L88'>88</a>
 <a name='L89'></a><a href='#L89'>89</a>
-<a name='L90'></a><a href='#L90'>90</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -168,13 +178,23 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -256,14 +276,24 @@ export const initCronJobs = <span class="fstat-no" title="function not covered" 
 <span class="cstat-no" title="statement not covered" >            for (const record of allRecords) {</span>
                 const userTech = <span class="cstat-no" title="statement not covered" >record.techName;</span>
 <span class="cstat-no" title="statement not covered" >                try {</span>
-                    const githubRes = <span class="cstat-no" title="statement not covered" >await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(userTech)}&amp;sort=stars&amp;order=desc`, {</span>
+                    const githubUrl = <span class="cstat-no" title="statement not covered" >`https://api.github.com/search/repositories?q=${encodeURIComponent(userTech)}&amp;sort=stars&amp;order=desc`;</span>
+                    const githubRes = <span class="cstat-no" title="statement not covered" >await fetch(githubUrl, {</span>
                         headers: { 'User-Agent': 'TechPulse/1.0.0' }
                     });
 <span class="cstat-no" title="statement not covered" >                    if (!githubRes.ok) {</span>
-<span class="cstat-no" title="statement not covered" >                        logger.warn(`❌ GitHub API Error [${githubRes.status}] for [${userTech}]`);</span>
+<span class="cstat-no" title="statement not covered" >                        logger.warn(`❌ GitHub API Error [${githubRes.status}] for [${userTech}] at ${githubUrl}`);</span>
 <span class="cstat-no" title="statement not covered" >                        continue;</span>
                     }
-                    const githubData = <span class="cstat-no" title="statement not covered" >await githubRes.json();</span>
+                    
+                    const text = <span class="cstat-no" title="statement not covered" >await githubRes.text();</span>
+                    let githubData;
+<span class="cstat-no" title="statement not covered" >                    try {</span>
+<span class="cstat-no" title="statement not covered" >                        githubData = JSON.parse(text);</span>
+                    } catch (e) {
+<span class="cstat-no" title="statement not covered" >                        logger.error(`❌ GitHub JSON Parse Error for [${userTech}]: ${e.message}. Received: ${text.slice(0, 100)}...`);</span>
+<span class="cstat-no" title="statement not covered" >                        continue;</span>
+                    }
+&nbsp;
 <span class="cstat-no" title="statement not covered" >                    if (!githubData?.items?.length) <span class="cstat-no" title="statement not covered" >continue;</span></span>
                     const topRepo = <span class="cstat-no" title="statement not covered" >githubData.items[0];</span>
 &nbsp;
@@ -337,7 +367,7 @@ export const initCronJobs = <span class="fstat-no" title="function not covered" 
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-04-21T14:26:02.487Z
+                at 2026-04-21T15:08:37.595Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

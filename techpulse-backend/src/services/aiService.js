@@ -22,7 +22,9 @@ export const fetchSentiment = async (tech) => {
     try {
         console.log(`🔍 Scraping developer sentiment for [${tech}]...`);
         const url = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(tech)}&tags=comment&hitsPerPage=3`;
-        const hnRes = await fetch(url);
+        const hnRes = await fetch(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+        });
         
         if (!hnRes.ok) {
             console.warn(`⚠️ Sentiment API Response NOT OK [${hnRes.status}] for ${url}`);
