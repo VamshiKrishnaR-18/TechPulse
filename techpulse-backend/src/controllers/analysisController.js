@@ -95,13 +95,13 @@ export const getMetrics = async (req, res) => {
             fill: '#' + Math.floor(Math.random()*16777215).toString(16) // Random color for now
         }));
 
-        // If we have no real data, we return empty instead of hardcoded mock data
+        // If we have no real data, we return empty
         res.json({ 
             success: true, 
             trends: dynamicTrends,
             meta: {
-                isDemoData: dynamicTrends.length === 0,
-                dataSource: dynamicTrends.length > 0 ? "Live Analysis Database" : "No data available yet"
+                hasData: dynamicTrends.length > 0,
+                dataSource: dynamicTrends.length > 0 ? "Live Analysis Database" : "No analyzed data found"
             }
         });
     } catch (error) {

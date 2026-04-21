@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">13.88% </span>
+                <span class="strong">20% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>5/36</span>
+                <span class='fraction'>8/40</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/9</span>
+                <span class='fraction'>0/19</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">11.11% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/9</span>
+                <span class='fraction'>1/9</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">15.62% </span>
+                <span class="strong">23.52% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>5/32</span>
+                <span class='fraction'>8/34</span>
             </div>
         
             
@@ -189,7 +189,11 @@
 <a name='L124'></a><a href='#L124'>124</a>
 <a name='L125'></a><a href='#L125'>125</a>
 <a name='L126'></a><a href='#L126'>126</a>
-<a name='L127'></a><a href='#L127'>127</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -213,6 +217,10 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -296,7 +304,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -306,14 +314,14 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import groq from '../config/groq.js';
 &nbsp;
@@ -339,12 +347,16 @@ export const fetchSentiment = <span class="fstat-no" title="function not covered
 <span class="cstat-no" title="statement not covered" >    try {</span>
 <span class="cstat-no" title="statement not covered" >        console.log(`🔍 Scraping developer sentiment for [${tech}]...`);</span>
         const hnRes = <span class="cstat-no" title="statement not covered" >await fetch(`https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(tech)}&amp;tags=comment&amp;hitsPerPage=3`);</span>
+        
+<span class="cstat-no" title="statement not covered" >        if (!hnRes.ok) <span class="cstat-no" title="statement not covered" >return [];</span></span>
+        
         const hnData = <span class="cstat-no" title="statement not covered" >await hnRes.json();</span>
+<span class="cstat-no" title="statement not covered" >        if (!hnData || !Array.isArray(hnData.hits)) <span class="cstat-no" title="statement not covered" >return [];</span></span>
         
 <span class="cstat-no" title="statement not covered" >        return hnData.hits.map(<span class="fstat-no" title="function not covered" >hi</span>t =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span>
-            text: hit.comment_text.replace(/&lt;[^&gt;]*&gt;/g, '').slice(0, 300),
+            text: (hit.comment_text || '').replace(/&lt;[^&gt;]*&gt;/g, '').slice(0, 300),
             source: "HackerNews",
-            author: hit.author
+            author: hit.author || 'unknown'
         }));
     } catch (error) {
 <span class="cstat-no" title="statement not covered" >        console.error("Sentiment Scraping Failed:", error.message);</span>
@@ -359,7 +371,7 @@ export const getAISummarization = <span class="fstat-no" title="function not cov
         Context: ${description}
         
         Task:
-        1. Summarize the core development in 4-5 detailed, high-impact bullet points. Each point should be a complete thought (15-20 words).
+        1. Summarize the core development in 6-10 detailed, high-impact bullet points. Each point should be a complete thought (15-20 words).
         2. Identify the 'main_tech' mentioned.
         3. Provide a 'sentiment_score' (0-100).
         4. Write a 2-sentence 'impact_verdict' explaining the long-term significance of this news for the industry.
@@ -421,8 +433,8 @@ export const getAIAnalysisStream = <span class="fstat-no" title="function not co
     });
 };
 &nbsp;
-export const getAISearchSuggestion = <span class="fstat-no" title="function not covered" >as</span>ync (query) =&gt; {
-    const prompt = <span class="cstat-no" title="statement not covered" >`</span>
+export const getAISearchSuggestion = async (query) =&gt; {
+    const prompt = `
         A user is searching for tech news with this query: "${query}".
         If the query is clear and correct, return it as is.
         If it's misspelled or looks like gibberish but resembles a tech term, provide the most likely intended tech term.
@@ -432,14 +444,14 @@ export const getAISearchSuggestion = <span class="fstat-no" title="function not 
         { "suggestedQuery": "string" }
     `;
 &nbsp;
-    const completion = <span class="cstat-no" title="statement not covered" >await groq.chat.completions.create({</span>
+    const completion = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
         response_format: { type: "json_object" }
     });
 &nbsp;
-<span class="cstat-no" title="statement not covered" >    return JSON.parse(completion.choices[0].message.content);</span>
+    return JSON.parse(completion.choices[0].message.content);
 };
 &nbsp;</pre></td></tr></table></pre>
 
@@ -448,7 +460,7 @@ export const getAISearchSuggestion = <span class="fstat-no" title="function not 
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-04-09T19:30:31.327Z
+                at 2026-04-21T14:20:29.941Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

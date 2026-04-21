@@ -33,7 +33,6 @@ const router = express.Router();
  */
 router.post('/signup', validate(authSchema), signup);
 router.post('/register', validate(authSchema), signup);
-router.post('/register', registerUser); // Alias for signup
 
 /**
  * @swagger
