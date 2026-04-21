@@ -33,3 +33,5 @@ Follow these steps to get the project running on your local machine.
 ```bash
 git clone <your-repo-url>
 cd techpulse
+
+Test CI/CD trigger
