@@ -8,6 +8,11 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    env:   # ✅ ADD THIS BLOCK
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -18,6 +23,9 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+
+          envs: GROQ_API_KEY,DATABASE_URL,JWT_SECRET   # ✅ ADD THIS
+
           script: |
             cd ~/TechPulse/techpulse-backend || exit
 
