@@ -1,4 +1,5 @@
 import logger from '../config/logger.js';
+import redisClient from '../config/redis.js';
 
 /**
  * 🚀 fetchSafe Helper
@@ -6,6 +7,17 @@ import logger from '../config/logger.js';
  * Returns null instead of throwing, allowing other APIs to succeed.
  */
 const fetchSafe = async (url, options = {}) => {
+    // 1. Check Redis Cache first
+    const cacheKey = `feed:raw:${url}`;
+    try {
+        if (redisClient.isOpen) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) return JSON.parse(cached);
+        }
+    } catch (err) {
+        logger.warn(`Redis Get Error for ${url}: ${err.message}`);
+    }
+
     const defaultHeaders = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*',
@@ -30,7 +42,14 @@ const fetchSafe = async (url, options = {}) => {
 
         const text = await res.text();
         try {
-            return JSON.parse(text);
+            const data = JSON.parse(text);
+            
+            // 2. Cache successful response in Redis (Expire in 15 mins)
+            if (redisClient.isOpen && data) {
+                await redisClient.set(cacheKey, JSON.stringify(data), { EX: 900 });
+            }
+            
+            return data;
         } catch (e) {
             logger.error(`❌ JSON Parse Error for ${url}: ${e.message}. Snippet: ${text.slice(0, 100)}`);
             return null;
@@ -41,10 +60,45 @@ const fetchSafe = async (url, options = {}) => {
     }
 };
 
+/**
+ * 🏆 Rank Score Helper
+ * Calculates a unified score for sorting: score = points + recency + source weight
+ */
+const calculateRankScore = (item) => {
+    const now = new Date();
+    const created = new Date(item.createdAt);
+    
+    // 1. Recency Score (Higher for newer posts)
+    // 10 points per hour, decaying over 48 hours
+    const hoursOld = Math.max(0, (now - created) / (1000 * 60 * 60));
+    const recencyScore = Math.max(0, 480 - (hoursOld * 10));
+
+    // 2. Points Score (Weighted raw points)
+    const pointsScore = (item.points || 0) * 1.5;
+
+    // 3. Source Weighting
+    const sourceWeights = {
+        'GitHub': 100,      // High value code signals
+        'HackerNews': 80,  // High quality discussion
+        'Dev.to': 40,      // Community tutorials
+        'Reddit': 20       // High volume social
+    };
+    const sourceScore = sourceWeights[item.source] || 0;
+
+    return recencyScore + pointsScore + sourceScore;
+};
+
 export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTechs = [] } = {}) => {
     try {
         const normalizedQuery = query.trim().toLowerCase();
         
+        // Caching the final merged result to speed up identical queries
+        const finalCacheKey = `feed:final:${normalizedQuery}:${tab}:${followedTechs.join(',')}`;
+        if (redisClient.isOpen) {
+            const cachedFinal = await redisClient.get(finalCacheKey);
+            if (cachedFinal) return JSON.parse(cachedFinal);
+        }
+
         // 1. Prepare search terms
         let searchTerms = normalizedQuery;
         if (tab === 'For You' && followedTechs.length > 0 && !normalizedQuery) {
@@ -78,17 +132,13 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
 
         // 4. Safe Mapping (Handle Nulls & Extract Images)
         const hnPosts = Array.isArray(hnData?.hits) ? hnData.hits.map(hit => {
-            // HackerNews doesn't provide images directly. 
-            // We use a high-quality placeholder service based on the source domain or a tech category
             const domain = hit.url ? new URL(hit.url).hostname : 'news.ycombinator.com';
-            const imageUrl = `https://unavatar.io/duckduckgo/${domain}`;
-
             return {
                 id: `hn-${hit.objectID}`,
                 title: hit.title || hit.story_title || 'Untitled',
                 description: `Discussion on HackerNews with ${hit.num_comments || 0} comments.`,
                 url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
-                image: imageUrl, // Dynamic domain-based icon
+                image: `https://unavatar.io/duckduckgo/${domain}`,
                 source: 'HackerNews',
                 author: hit.author || 'unknown',
                 tags: ['news', 'trending'],
@@ -102,7 +152,7 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
             title: item.full_name,
             description: item.description || 'Trending repository on GitHub.',
             url: item.html_url,
-            image: item.owner?.avatar_url || `https://opengraph.githubassets.com/1/${item.full_name}`, // Use OG image if possible
+            image: item.owner?.avatar_url || `https://opengraph.githubassets.com/1/${item.full_name}`,
             source: 'GitHub',
             author: item.owner?.login || 'unknown',
             tags: ['github', item.language || 'code', 'trending'],
@@ -125,16 +175,13 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
 
         const redditPosts = Array.isArray(redditData?.data?.children) ? redditData.data.children.map(child => {
             const data = child.data;
-            // Reddit thumbnails are often 'self', 'default', or 'nsfw'. Filter those out.
             const hasRealThumbnail = data.thumbnail && data.thumbnail.startsWith('http');
-            const redditImage = hasRealThumbnail ? data.thumbnail : `https://unavatar.io/reddit/${data.subreddit}`;
-
             return {
                 id: `reddit-${data.id}`,
                 title: data.title,
                 description: `Hot on r/${data.subreddit}`,
                 url: `https://reddit.com${data.permalink}`,
-                image: redditImage,
+                image: hasRealThumbnail ? data.thumbnail : `https://unavatar.io/reddit/${data.subreddit}`,
                 source: `r/${data.subreddit}`,
                 author: data.author,
                 tags: ['reddit', data.subreddit],
@@ -143,12 +190,13 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
             };
         }) : [];
 
-        // 5. Merge & Debug Logs
-        const merged = [...hnPosts, ...githubPosts, ...devToPosts, ...redditPosts]
+        // 5. Merge & Sort with Enhanced Ranking
+        let merged = [...hnPosts, ...githubPosts, ...devToPosts, ...redditPosts]
             .filter(item => item.title && item.url)
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            .map(item => ({ ...item, rankScore: calculateRankScore(item) }))
+            .sort((a, b) => b.rankScore - a.rankScore);
 
-        // 🚀 CRITICAL DEBUG LOGS PER USER REQUEST
+        // 🚀 DEBUG LOGS
         console.log("DEVTO:", devToPosts.length);
         console.log("HN:", hnPosts.length);
         console.log("REDDIT:", redditPosts.length);
@@ -156,25 +204,32 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
         console.log("MERGED:", merged.length);
 
         // 6. Final Filter/Tab logic with Relaxed Matching
-        if (!normalizedQuery) {
-            if (tab === 'Trending') return [...merged].sort((a, b) => (b.points || 0) - (a.points || 0));
-            if (tab === 'Recent') return [...merged].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-            return merged;
+        let result = merged;
+        if (normalizedQuery) {
+            result = merged.filter(item => {
+                const haystack = `${item.title} ${item.description} ${item.source} ${(item.tags || []).join(' ')}`.toLowerCase();
+                return haystack.includes(normalizedQuery) || normalizedQuery.length < 3;
+            });
+
+            if (result.length === 0 && merged.length > 0) {
+                logger.warn(`Filtering for [${normalizedQuery}] returned 0 items. Falling back.`);
+                result = merged;
+            }
         }
 
-        const filtered = merged.filter(item => {
-            const haystack = `${item.title} ${item.description} ${item.source} ${(item.tags || []).join(' ')}`.toLowerCase();
-            // 🚀 RELAXED FILTERING PER USER REQUEST
-            return haystack.includes(normalizedQuery) || normalizedQuery.length < 3;
-        });
-
-        // 🚀 FALLBACK TO MERGED IF FILTERING REMOVES EVERYTHING
-        if (filtered.length === 0 && merged.length > 0) {
-            logger.warn(`Filtering for [${normalizedQuery}] returned 0 items. Falling back to original merged feed.`);
-            return merged;
+        // Apply Tab-specific overrides
+        if (tab === 'Recent') {
+            result = [...result].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        } else if (tab === 'Trending') {
+            result = [...result].sort((a, b) => (b.points || 0) - (a.points || 0));
         }
 
-        return filtered;
+        // Cache the final result for 5 mins
+        if (redisClient.isOpen && result.length > 0) {
+            await redisClient.set(finalCacheKey, JSON.stringify(result), { EX: 300 });
+        }
+
+        return result;
     } catch (error) {
         logger.error('CRITICAL: Mixed Feed Aggregator Failed:', error.message);
         return []; 

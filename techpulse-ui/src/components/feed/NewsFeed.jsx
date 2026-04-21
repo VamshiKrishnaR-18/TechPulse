@@ -16,9 +16,36 @@ const NewsFeed = ({
   onApplySuggestion,
   visibleCount = 12,
   onLoadMore,
-  trends = []
+  trends = [],
+  isLoading = false
 }) => {
   const [sourceFilter, setSourceFilter] = useState('All')
+  
+  // Skeleton Loader Component
+  const SkeletonCard = () => (
+    <div className="glass-card p-6 flex flex-col h-[420px] relative overflow-hidden animate-pulse">
+      <div className="absolute top-4 right-4 z-10">
+        <div className="bg-white/5 w-20 h-4 rounded-full" />
+      </div>
+      <div className="h-48 -mx-6 -mt-6 mb-6 bg-white/5" />
+      <div className="flex-1 flex flex-col">
+        <div className="flex gap-2 mb-3">
+          <div className="bg-tp-accent/20 w-12 h-2 rounded" />
+          <div className="bg-tp-accent/20 w-12 h-2 rounded" />
+        </div>
+        <div className="bg-white/10 w-full h-6 rounded mb-2" />
+        <div className="bg-white/10 w-3/4 h-6 rounded mb-4" />
+        <div className="bg-white/5 w-full h-3 rounded mb-1" />
+        <div className="bg-white/5 w-full h-3 rounded mb-1" />
+        <div className="bg-white/5 w-2/3 h-3 rounded mb-1" />
+        <div className="mt-auto flex items-center justify-between pt-6 border-t border-tp-border">
+          <div className="bg-tp-accent/30 w-32 h-10 rounded-xl" />
+          <div className="bg-white/5 w-16 h-4 rounded" />
+        </div>
+      </div>
+    </div>
+  );
+
   const container = {
     hidden: { opacity: 0 },
     show: {
@@ -119,76 +146,80 @@ const NewsFeed = ({
          animate="show"
          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
        >
-          {visibleItems.map((item, i) => (
-             <motion.div 
-                key={item.id || i} 
-                variants={itemVariants}
-                viewport={{ amount: 0.2, once: true }}
-                onClick={() => handleSummarize(item)} 
-                className="glass-card glass-card-hover p-6 flex flex-col h-[420px] cursor-pointer relative overflow-hidden group"
-             >
-                <div className="absolute top-4 right-4 z-10">
-                   <div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[8px] font-black text-white uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
-                     <Globe size={8} />
-                     {item.source}
-                   </div>
-                </div>
-                <div className="h-48 -mx-6 -mt-6 mb-6 overflow-hidden bg-black/20 flex items-center justify-center relative">
-                   {item.image ? (
-                      <img src={item.image} loading="lazy" decoding="async" alt={item.title || 'news image'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-80 group-hover:opacity-100" />
-                   ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#0f1420] to-[#0b1020]">
-                        <div className="text-4xl opacity-20 group-hover:scale-125 transition-transform duration-700">
-                          {typeof item.source === 'string' && item.source.startsWith('r/') ? '👽' : '📰'}
+          {isLoading ? (
+             Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
+          ) : (
+            visibleItems.map((item, i) => (
+               <motion.div 
+                  key={item.id || i} 
+                  variants={itemVariants}
+                  viewport={{ amount: 0.2, once: true }}
+                  onClick={() => handleSummarize(item)} 
+                  className="glass-card glass-card-hover p-6 flex flex-col h-[420px] cursor-pointer relative overflow-hidden group"
+               >
+                  <div className="absolute top-4 right-4 z-10">
+                     <div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[8px] font-black text-white uppercase tracking-widest border border-white/10 flex items-center gap-1.5">
+                       <Globe size={8} />
+                       {item.source}
+                     </div>
+                  </div>
+                  <div className="h-48 -mx-6 -mt-6 mb-6 overflow-hidden bg-black/20 flex items-center justify-center relative">
+                     {item.image ? (
+                        <img src={item.image} loading="lazy" decoding="async" alt={item.title || 'news image'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-80 group-hover:opacity-100" />
+                     ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#0f1420] to-[#0b1020]">
+                          <div className="text-4xl opacity-20 group-hover:scale-125 transition-transform duration-700">
+                            {typeof item.source === 'string' && item.source.startsWith('r/') ? '👽' : '📰'}
+                          </div>
                         </div>
-                      </div>
-                   )}
-                   <div className="absolute inset-0 bg-gradient-to-t from-tp-surface to-transparent opacity-60"></div>
-                </div>
-                <div className="flex-1 flex flex-col">
-                   <div className="flex gap-2 mb-3">
-                      {item.tags?.slice(0, 2).map(tag => (
-                         <span key={tag} className="text-[8px] font-black text-tp-accent uppercase tracking-widest"># {tag}</span>
-                      ))}
-                   </div>
-                   <h3 className="text-lg font-black text-white leading-tight group-hover:text-tp-accent transition-colors line-clamp-2 mb-2">{item.title}</h3>
-                   <p className="text-[11px] text-slate-400 font-bold leading-relaxed line-clamp-3 mb-2">{item.description || 'No description available.'}</p>
-                   <div className="mt-auto flex items-center justify-between pt-6 border-t border-tp-border">
-                      <div className="flex items-center gap-2">
-                         <button onClick={(e) => {e.stopPropagation(); handleSummarize(item)}} className="flex items-center gap-2 px-4 py-2 bg-tp-accent hover:bg-blue-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-tp-accent/20">
-                            <Sparkles size={10} />
-                            AI SUMMARY
-                         </button>
-                         <a
-                           href={item.url}
-                           onClick={(e) => e.stopPropagation()}
-                           target="_blank"
-                           rel="noreferrer"
-                           className="text-[9px] font-black text-slate-500 hover:text-white uppercase tracking-widest px-2"
-                           title="Open original"
-                         >
-                           Read
-                         </a>
-                         <button 
-                           onClick={(e) => {e.stopPropagation(); handleSaveArticle(item)}} 
-                           disabled={dbOffline}
-                           className={`p-2 rounded-xl border transition-all ${dbOffline ? 'opacity-20 cursor-not-allowed' : ''} ${savedArticles.some(s => s.url === item.url) ? 'bg-tp-accent border-tp-accent text-white' : 'bg-white/5 border-white/5 text-slate-500 hover:text-white hover:bg-white/10'}`}
-                           title={dbOffline ? "Saving unavailable in offline mode" : "Save for later"}
-                         >
-                            <Bookmark size={14} fill={savedArticles.some(s => s.url === item.url) ? "currentColor" : "none"} />
-                         </button>
-                      </div>
-                      <div className="text-right">
-                         <div className="text-[8px] font-black text-slate-600 uppercase mb-0.5 flex items-center justify-end gap-1">
-                           <User size={8} />
-                           Author
-                         </div>
-                         <div className="text-[10px] font-bold text-slate-400 truncate max-w-[80px]">{item.author}</div>
-                      </div>
-                   </div>
-                </div>
-             </motion.div>
-          ))}
+                     )}
+                     <div className="absolute inset-0 bg-gradient-to-t from-tp-surface to-transparent opacity-60"></div>
+                  </div>
+                  <div className="flex-1 flex flex-col">
+                     <div className="flex gap-2 mb-3">
+                        {item.tags?.slice(0, 2).map(tag => (
+                           <span key={tag} className="text-[8px] font-black text-tp-accent uppercase tracking-widest"># {tag}</span>
+                        ))}
+                     </div>
+                     <h3 className="text-lg font-black text-white leading-tight group-hover:text-tp-accent transition-colors line-clamp-2 mb-2">{item.title}</h3>
+                     <p className="text-[11px] text-slate-400 font-bold leading-relaxed line-clamp-3 mb-2">{item.description || 'No description available.'}</p>
+                     <div className="mt-auto flex items-center justify-between pt-6 border-t border-tp-border">
+                        <div className="flex items-center gap-2">
+                           <button onClick={(e) => {e.stopPropagation(); handleSummarize(item)}} className="flex items-center gap-2 px-4 py-2 bg-tp-accent hover:bg-blue-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-tp-accent/20">
+                              <Sparkles size={10} />
+                              AI SUMMARY
+                           </button>
+                           <a
+                             href={item.url}
+                             onClick={(e) => e.stopPropagation()}
+                             target="_blank"
+                             rel="noreferrer"
+                             className="text-[9px] font-black text-slate-500 hover:text-white uppercase tracking-widest px-2"
+                             title="Open original"
+                           >
+                             Read
+                           </a>
+                           <button 
+                             onClick={(e) => {e.stopPropagation(); handleSaveArticle(item)}} 
+                             disabled={dbOffline}
+                             className={`p-2 rounded-xl border transition-all ${dbOffline ? 'opacity-20 cursor-not-allowed' : ''} ${savedArticles.some(s => s.url === item.url) ? 'bg-tp-accent border-tp-accent text-white' : 'bg-white/5 border-white/5 text-slate-500 hover:text-white hover:bg-white/10'}`}
+                             title={dbOffline ? "Saving unavailable in offline mode" : "Save for later"}
+                           >
+                              <Bookmark size={14} fill={savedArticles.some(s => s.url === item.url) ? "currentColor" : "none"} />
+                           </button>
+                        </div>
+                        <div className="text-right">
+                           <div className="text-[8px] font-black text-slate-600 uppercase mb-0.5 flex items-center justify-end gap-1">
+                             <User size={8} />
+                             Author
+                           </div>
+                           <div className="text-[10px] font-bold text-slate-400 truncate max-w-[80px]">{item.author}</div>
+                        </div>
+                     </div>
+                  </div>
+               </motion.div>
+            ))
+          )}
        </motion.div>
        <div className="flex items-center justify-center pt-2">
          {visibleItems.length < filteredBySource.length ? (
