@@ -18,6 +18,9 @@ async function connectWithRetry() {
   }
 }
 
-connectWithRetry();
+// ✅ Only connect in non-test environments
+if (process.env.NODE_ENV !== 'test') {
+  connectWithRetry();
+}
 
 export default prisma;
