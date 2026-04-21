@@ -33,7 +33,7 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
             fetch(devToUrl),
             fetch(hnUrl),
             fetch(redditUrl, {
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+                headers: { 'User-Agent': 'TechPulse/1.0.0 (by /u/TechPulseAdmin)' }
             }),
             fetch(githubUrl, {
                 headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'TechPulse/1.0.0' }

@@ -126,7 +126,17 @@ export const summarizeArticle = async (req, res) => {
         res.json({ success: true, ...data, techMetrics });
     } catch (error) {
         console.error("Summarizer Error:", error.message);
-        res.status(500).json({ success: false, message: "AI Summarization failed." });
+        // Fallback to original content if AI fails, keeping it "real"
+        res.json({ 
+            success: true, 
+            summary: [description || title], 
+            main_tech: "Unknown", 
+            sentiment_score: 50,
+            impact_verdict: "AI summarization currently unavailable.",
+            key_concepts: [],
+            risks: [],
+            techMetrics: null 
+        });
     }
 };
 
