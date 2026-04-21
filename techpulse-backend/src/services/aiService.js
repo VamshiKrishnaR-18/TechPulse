@@ -21,11 +21,23 @@ export const withRetry = async (fn, maxRetries = 3, initialDelay = 1000) => {
 export const fetchSentiment = async (tech) => {
     try {
         console.log(`🔍 Scraping developer sentiment for [${tech}]...`);
-        const hnRes = await fetch(`https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(tech)}&tags=comment&hitsPerPage=3`);
+        const url = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(tech)}&tags=comment&hitsPerPage=3`;
+        const hnRes = await fetch(url);
         
-        if (!hnRes.ok) return [];
+        if (!hnRes.ok) {
+            console.warn(`⚠️ Sentiment API Response NOT OK [${hnRes.status}] for ${url}`);
+            return [];
+        }
         
-        const hnData = await hnRes.json();
+        const text = await hnRes.text();
+        let hnData;
+        try {
+            hnData = JSON.parse(text);
+        } catch (e) {
+            console.error(`❌ Sentiment JSON Parse Error for ${url}: ${e.message}. Received: ${text.slice(0, 100)}...`);
+            return [];
+        }
+
         if (!hnData || !Array.isArray(hnData.hits)) return [];
         
         return hnData.hits.map(hit => ({

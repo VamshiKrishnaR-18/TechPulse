@@ -192,8 +192,27 @@ export const streamAnalysis = async (req, res) => {
             return res.end();
         }
 
-        const githubRes = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(userTech)}&sort=stars&order=desc`);
-        const githubData = await githubRes.json();
+        const githubUrl = `https://api.github.com/search/repositories?q=${encodeURIComponent(userTech)}&sort=stars&order=desc`;
+        const githubRes = await fetch(githubUrl, {
+            headers: { 'User-Agent': 'TechPulse/1.0.0' }
+        });
+        
+        if (!githubRes.ok) {
+            logger.warn(`❌ GitHub Analysis API Error [${githubRes.status}] for ${githubUrl}`);
+            sendEvent({ success: false, message: "GitHub data currently unavailable." });
+            return res.end();
+        }
+
+        const text = await githubRes.text();
+        let githubData;
+        try {
+            githubData = JSON.parse(text);
+        } catch (e) {
+            logger.error(`❌ GitHub Analysis JSON Parse Error: ${e.message}. Received: ${text.slice(0, 100)}...`);
+            sendEvent({ success: false, message: "Failed to parse repository data." });
+            return res.end();
+        }
+
         if (!githubData.items?.length) {
             sendEvent({ success: false, message: "No GitHub data found." });
             return res.end();
