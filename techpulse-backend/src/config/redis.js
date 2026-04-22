@@ -4,31 +4,41 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const redisClient = createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379'
-});
+let redisClient = null;
+let isRedisAvailable = true;
 
-redisClient.on('error', (err) => {
-    if (process.env.NODE_ENV === 'production') {
-        logger.error('Redis Client Error:', err);
-    } else {
-        // Quiet warning for local dev if Redis is not running
-        logger.warn('Redis not available. Running without cache.');
-    }
-});
+try {
+    redisClient = createClient({
+        url: process.env.REDIS_URL || 'redis://localhost:6379',
+        socket: {
+            reconnectStrategy: () => false // ❌ disable retry loop
+        }
+    });
 
-redisClient.on('connect', () => {
-    logger.info('✅ Connected to Redis');
-});
+    redisClient.on('error', (err) => {
+        if (isRedisAvailable) {
+            logger.warn('⚠️ Redis not available. Running without cache:', err);
+            isRedisAvailable = false; // ✅ log only once
+        }
+    });
 
-// Auto-connect
-(async () => {
-    try {
-        await redisClient.connect();
-    } catch (err) {
-        // Fallback for environments without Redis
-        logger.warn('Redis connection failed. Caching disabled.');
-    }
-})();
+    redisClient.on('connect', () => {
+        logger.info('✅ Connected to Redis');
+        isRedisAvailable = true;
+    });
+
+    (async () => {
+        try {
+            await redisClient.connect();
+        } catch (err) {
+            logger.warn('Redis connection failed. Caching disabled.');
+            redisClient = null;
+        }
+    })();
+
+} catch (err) {
+    logger.warn('Redis init failed. Running without cache.');
+    redisClient = null;
+}
 
 export default redisClient;

@@ -59,11 +59,13 @@ export const getFeed = async (req, res) => {
 
         // 2. Fallback to Database if APIs fail or return empty
         if (!feed || feed.length === 0) {
-            feed = await prisma.savedArticle.findMany({
+            logger.info(`⚠️ Live feed empty for query [${query}]. Falling back to global news cache.`);
+            feed = await prisma.newsCache.findMany({
                 where: query ? {
                     OR: [
                         { title: { contains: query, mode: 'insensitive' } },
-                        { source: { contains: query, mode: 'insensitive' } }
+                        { description: { contains: query, mode: 'insensitive' } },
+                        { tags: { has: query.toLowerCase() } }
                     ]
                 } : {},
                 orderBy: { createdAt: 'desc' },
@@ -89,7 +91,7 @@ export const getFeed = async (req, res) => {
         logger.error(`Feed Aggregator Error: ${error.message}`);
 
         try {
-            const fallbackFeed = await prisma.savedArticle.findMany({ take: 30, orderBy: { createdAt: 'desc' } });
+            const fallbackFeed = await prisma.newsCache.findMany({ take: 30, orderBy: { createdAt: 'desc' } });
             return res.json({ success: true, feed: fallbackFeed, meta: { source: "error_fallback" } });
         } catch (dbError) {
             res.status(500).json({ success: false, message: "Critical failure in news feed." });
@@ -131,15 +133,15 @@ export const summarizeArticle = async (req, res) => {
             console.error("Summarizer Error:", error.message);
         }
         // Fallback to original content if AI fails, keeping it "real"
-        res.json({ 
-            success: true, 
-            summary: [description || title], 
-            main_tech: "Unknown", 
+        res.json({
+            success: true,
+            summary: [description || title],
+            main_tech: "Unknown",
             sentiment_score: 50,
             impact_verdict: "AI summarization currently unavailable.",
             key_concepts: [],
             risks: [],
-            techMetrics: null 
+            techMetrics: null
         });
     }
 };

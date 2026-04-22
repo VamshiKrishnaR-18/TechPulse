@@ -77,10 +77,35 @@ export const getMetrics = async (req, res) => {
     try {
         const category = req.query.category || 'languages';
         
+        const CATEGORY_MAP = {
+            languages: ['JavaScript', 'TypeScript', 'Python', 'Rust', 'Go', 'Java', 'C++', 'Swift'],
+            frameworks: ['React', 'Next.js', 'Vue', 'Angular', 'Svelte', 'Django', 'Spring Boot', 'Laravel'],
+            frontend: ['React', 'Vue', 'Tailwind CSS', 'Vite', 'Webpack', 'Three.js', 'Framer Motion'],
+            backend: ['Node.js', 'Express', 'FastAPI', 'Go', 'NestJS', 'Ruby on Rails', 'Elixir'],
+            mobile: ['React Native', 'Flutter', 'SwiftUI', 'Kotlin', 'Ionic', 'Dart'],
+            cloud: ['AWS', 'Docker', 'Kubernetes', 'Terraform', 'Azure', 'Google Cloud', 'Nginx'],
+            database: ['PostgreSQL', 'MongoDB', 'Redis', 'MySQL', 'Supabase', 'Firebase', 'Elasticsearch'],
+            ai: ['PyTorch', 'TensorFlow', 'Scikit-learn', 'Pandas', 'OpenCV', 'Hugging Face'],
+            llm: ['OpenAI', 'LangChain', 'LlamaIndex', 'Groq', 'Anthropic', 'Mistral'],
+            cybersecurity: ['Kali Linux', 'Wireshark', 'Metasploit', 'Burp Suite', 'Nmap'],
+            web3: ['Solidity', 'Ethers.js', 'Hardhat', 'IPFS', 'The Graph', 'Web3.js'],
+            domains: ['E-commerce', 'FinTech', 'HealthTech', 'EdTech', 'PropTech', 'AdTech'],
+            industry_trends: ['Remote Work', 'Serverless', 'Microservices', 'Low-code', 'No-code'],
+        };
+
+        const targetTechs = CATEGORY_MAP[category] || CATEGORY_MAP.languages;
+
         // Dynamic aggregate data from the global history (REAL reports)
+        // We filter by the technologies that belong to this category
         const realReports = await prisma.techAnalysis.findMany({
+            where: {
+                techName: {
+                    in: targetTechs,
+                    mode: 'insensitive'
+                }
+            },
             orderBy: { createdAt: 'desc' },
-            take: 50
+            take: 20
         });
 
         // Filter and map real reports to the expected trend format
@@ -92,16 +117,36 @@ export const getMetrics = async (req, res) => {
                 jobs: report.metrics.job_score,
                 stability: report.metrics.stability_score
             },
-            fill: '#' + Math.floor(Math.random()*16777215).toString(16) // Random color for now
+            fill: '#' + Math.floor(Math.random()*16777215).toString(16)
         }));
 
-        // If we have no real data, we return empty
+        // Generate seeded defaults based on the category if we don't have enough real data
+        const getSeededDefaults = (cat) => {
+            const techs = CATEGORY_MAP[cat] || CATEGORY_MAP.languages;
+            return techs.slice(0, 5).map((name, i) => ({
+                techName: name,
+                score: 70 + Math.random() * 25,
+                momentum: 5 + Math.random() * 15,
+                demand: 60 + Math.random() * 35,
+                sentiment: 75 + Math.random() * 20,
+                sources: {
+                    github: 70 + Math.random() * 20,
+                    jobs: 60 + Math.random() * 30,
+                    stability: 80 + Math.random() * 15
+                },
+                fill: ['#61dafb', '#dea584', '#3178c6', '#00add8', '#3776ab'][i] || '#ccc'
+            }));
+        };
+
+        const finalTrends = dynamicTrends.length >= 3 ? dynamicTrends : getSeededDefaults(category);
+
         res.json({ 
             success: true, 
-            trends: dynamicTrends,
+            trends: finalTrends,
             meta: {
-                hasData: dynamicTrends.length > 0,
-                dataSource: dynamicTrends.length > 0 ? "Live Analysis Database" : "No analyzed data found"
+                category,
+                hasData: dynamicTrends.length >= 3,
+                dataSource: dynamicTrends.length >= 3 ? "Live Analysis Database" : "Seeded Market Defaults"
             }
         });
     } catch (error) {

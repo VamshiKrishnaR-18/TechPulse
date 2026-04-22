@@ -34,9 +34,14 @@ export const useUserData = (token, setAuthMode) => {
     select: (data) => {
       if (!data.success) return [];
       return data.trends.map((t) => ({ 
-        name: t.techName, techName: t.techName, score: t.score, sources: t.sources,
-        momentum: ((t.sources?.github || 0) * 0.6 + (t.sources?.jobs || 0) * 0.4) - (t.sources?.stackoverflow || 0),
-        demand: t.sources?.jobs || 0, sentiment: t.sources?.github || 0, fill: t.fill
+        name: t.techName, 
+        techName: t.techName, 
+        score: t.score || 0, 
+        sources: t.sources || {},
+        momentum: t.momentum || ((t.sources?.github || 0) * 0.6 + (t.sources?.jobs || 0) * 0.4),
+        demand: t.demand || t.sources?.jobs || 0, 
+        sentiment: t.sentiment || t.sources?.github || 0, 
+        fill: t.fill || '#ccc'
       }));
     },
   });

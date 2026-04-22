@@ -63,7 +63,9 @@ const NewsFeed = ({
 
   const filteredBySource = useMemo(() => {
     if (sourceFilter === 'All') return feed
-    if (sourceFilter === 'Reddit') return feed.filter(f => typeof f.source === 'string' && f.source.startsWith('r/'))
+    if (sourceFilter === 'Reddit') return feed.filter(f => 
+      typeof f.source === 'string' && (f.source === 'Reddit' || f.source.startsWith('r/'))
+    )
     return feed.filter(f => f.source === sourceFilter)
   }, [feed, sourceFilter])
 
