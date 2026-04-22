@@ -28,6 +28,7 @@ export const useTechPulse = () => {
     ...feedState,
     ...userDataState,
     ...userInterestsState,
+    isGuestHistory: userDataState.isGuestHistory,
     
     // Global State
     activeTab, 

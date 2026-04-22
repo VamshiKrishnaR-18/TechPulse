@@ -43,33 +43,17 @@ export const getHistory = async (req, res) => {
                 meta: { total, page, totalPages: Math.ceil(total / limit) } 
             });
         }
-        throw new Error("No user");
-    } catch (e) {
-        // Fallback for Guests (also paginated now)
-        try {
-            const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 10;
-            const skip = (page - 1) * limit;
 
-            const [globalHistory, total] = await Promise.all([
-                prisma.techAnalysis.findMany({
-                    orderBy: { createdAt: 'desc' },
-                    take: limit,
-                    skip: skip
-                }),
-                prisma.techAnalysis.count()
-            ]);
-            
-            res.json({ 
-                success: true, 
-                history: globalHistory, 
-                isGuest: true,
-                meta: { total, page, totalPages: Math.ceil(total / limit) } 
-            });
-        } catch (dbError) {
-            console.error("Guest History DB Error:", dbError.message);
-            res.json({ success: true, history: [], isGuest: true, error: "Database offline" });
-        }
+        // 🛡️ Subjective Privacy: Guests should not see the global history
+        return res.json({ 
+            success: true, 
+            history: [], 
+            isGuest: true,
+            meta: { total: 0, page, totalPages: 0 } 
+        });
+    } catch (e) {
+        console.error("Get History Error:", e.message);
+        res.status(500).json({ success: false, message: "Failed to fetch history." });
     }
 };
 

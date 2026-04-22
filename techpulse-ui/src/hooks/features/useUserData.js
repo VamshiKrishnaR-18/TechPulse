@@ -27,6 +27,7 @@ export const useUserData = (token, setAuthMode) => {
   });
   const history = historyData?.history || [];
   const historyMeta = historyData?.meta || { total: 0, page: 1, totalPages: 1 };
+  const isGuestHistory = !!historyData?.isGuest;
 
   const { data: analyticsData, isLoading: isTrendsLoading } = useQuery({
     queryKey: ['analytics', trendsCategory],
@@ -87,7 +88,7 @@ export const useUserData = (token, setAuthMode) => {
 
   return {
     savedArticles, savedArticlesMeta, savedArticlesPage, setSavedArticlesPage,
-    history, historyMeta, historyPage, setHistoryPage,
+    history, historyMeta, historyPage, setHistoryPage, isGuestHistory,
     trends, isTrendsLoading, trendsCategory, setTrendsCategory,
     isSavedLoading, isHistoryLoading,
     handleSaveArticle, handleRemoveArticle, handleClearHistory,

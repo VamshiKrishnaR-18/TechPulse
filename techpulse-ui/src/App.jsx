@@ -85,6 +85,7 @@ function App() {
     setSavedArticlesPage,
     followedTechs,
     handleToggleFollow,
+    isGuestHistory,
   } = useTechPulse();
 
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
@@ -359,14 +360,14 @@ function App() {
 
                       {/* Strategic Process Steps */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full pt-8">
-                        {history.length > 0 ? (
+                        {history.length > 0 && !isGuestHistory ? (
                           <div className="col-span-full space-y-6">
                             <div className="flex items-center justify-between border-b border-white/5 pb-2">
                                <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] italic">
-                                  Recent Intelligence Reports
+                                  Your Recent Reports
                                </h3>
                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                                  {history.length} Reports Cached
+                                  {history.length} Reports Saved
                                </p>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -400,38 +401,56 @@ function App() {
                                ))}
                             </div>
                           </div>
-                        ) : [
-                          {
-                            step: "01",
-                            title: "Data Ingestion",
-                            desc: "Aggregates signals from GitHub, HackerNews, Reddit, and market sources.",
-                          },
-                          {
-                            step: "02",
-                            title: "AI Synthesis",
-                            desc: "Processes raw data through LLM models to extract technical trends and sentiment.",
-                          },
-                          {
-                            step: "03",
-                            title: "Market Verdict",
-                            desc: "Delivers actionable insights, roadmap projections, and ecosystem health scores.",
-                          },
-                        ].map((item, i) => (
-                          <div
-                            key={i}
-                            className="p-8 bg-white/[0.02] border border-white/5 rounded-[2.5rem] space-y-4 hover:bg-white/5 transition-all text-left group"
-                          >
-                            <div className="text-tp-accent font-black text-xs tracking-widest">
-                              {item.step}
-                            </div>
-                            <h4 className="text-sm font-black text-white uppercase italic">
-                              {item.title}
-                            </h4>
-                            <p className="text-[10px] text-slate-500 font-bold leading-relaxed group-hover:text-slate-400">
-                              {item.desc}
-                            </p>
-                          </div>
-                        ))}
+                        ) : (
+                          <>
+                            {isGuestHistory && (
+                              <div className="col-span-full p-8 bg-tp-accent/5 border border-tp-accent/20 rounded-[2rem] mb-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                                <div>
+                                  <h4 className="text-sm font-black text-white uppercase italic tracking-widest mb-1">Personalize Your Intelligence</h4>
+                                  <p className="text-[10px] text-slate-500 font-bold">Sign in to track your technical analysis history and save custom reports.</p>
+                                </div>
+                                <button 
+                                  onClick={() => setAuthMode('signup')}
+                                  className="px-6 py-3 bg-tp-accent hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all"
+                                >
+                                  Get Started
+                                </button>
+                              </div>
+                            )}
+                            {[
+                              {
+                                step: "01",
+                                title: "Data Ingestion",
+                                desc: "Aggregates signals from GitHub, HackerNews, Reddit, and market sources.",
+                              },
+                              {
+                                step: "02",
+                                title: "AI Synthesis",
+                                desc: "Processes raw data through LLM models to extract technical trends and sentiment.",
+                              },
+                              {
+                                step: "03",
+                                title: "Market Verdict",
+                                desc: "Delivers actionable insights, roadmap projections, and ecosystem health scores.",
+                              },
+                            ].map((item, i) => (
+                              <div
+                                key={i}
+                                className="p-8 bg-white/[0.02] border border-white/5 rounded-[2.5rem] space-y-4 hover:bg-white/5 transition-all text-left group"
+                              >
+                                <div className="text-tp-accent font-black text-xs tracking-widest">
+                                  {item.step}
+                                </div>
+                                <h4 className="text-sm font-black text-white uppercase italic">
+                                  {item.title}
+                                </h4>
+                                <p className="text-[10px] text-slate-500 font-bold leading-relaxed group-hover:text-slate-400">
+                                  {item.desc}
+                                </p>
+                              </div>
+                            ))}
+                          </>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl pt-4">
