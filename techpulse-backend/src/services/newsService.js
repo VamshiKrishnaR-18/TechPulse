@@ -26,12 +26,14 @@ const fetchSafe = async (url, options = {}) => {
     };
 
     try {
-        const res = await fetch(url, {
+        const fetchOptions = {
             ...options,
             headers: { ...defaultHeaders, ...options.headers },
             // Add a timeout to prevent hanging requests in cloud environment
-            signal: AbortSignal.timeout(8000)
-        });
+            signal: AbortSignal.timeout(url.includes('reddit.com') ? 12000 : 8000)
+        };
+
+        const res = await fetch(url, fetchOptions);
 
         if (!res.ok) {
             // Log warning but don't throw; Reddit 403s are common on cloud IPs
