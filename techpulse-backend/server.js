@@ -37,9 +37,13 @@ app.use(helmet());
 // ==========================================
 // Instead of letting anyone hit your API, we explicitly whitelist your Vite frontend.
 const corsOptions = {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: [
+        process.env.FRONTEND_URL, 
+        'http://localhost:5173', 
+        'https://tech-pulse-pi.vercel.app'
+    ].filter(Boolean),
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    credentials: true, // Allows cookies/authorization headers
+    credentials: true,
 };
 app.use(cors(corsOptions));
 
