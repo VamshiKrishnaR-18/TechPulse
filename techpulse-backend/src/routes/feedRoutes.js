@@ -1,5 +1,5 @@
 import express from 'express';
-import { getFeed, summarizeArticle, saveArticle, getSavedArticles, suggestSearch, deleteArticle } from '../controllers/feedController.js';
+import { getFeed, summarizeArticle, saveArticle, getSavedArticles, suggestSearch, deleteArticle, chatWithArticle } from '../controllers/feedController.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { summarizeSchema, saveArticleSchema } from '../utils/validation.js';
@@ -16,9 +16,10 @@ const optionalAuth = (req, res, next) => {
 
 router.get('/feed', optionalAuth, getFeed);
 router.get('/suggest-search', suggestSearch);
-router.post('/summarize', validate(summarizeSchema), summarizeArticle);
+router.post('/summarize', optionalAuth, validate(summarizeSchema), summarizeArticle);
 router.post('/save-article', authenticateToken, validate(saveArticleSchema), saveArticle);
 router.delete('/save-article/:articleId', authenticateToken, deleteArticle);
 router.get('/saved-articles', authenticateToken, getSavedArticles);
+router.post('/chat', optionalAuth, chatWithArticle);
 
 export default router;

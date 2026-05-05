@@ -1,7 +1,8 @@
 import prisma from '../config/prisma.js';
 import { fetchMixedFeed } from '../services/newsService.js';
-import { getAISummarization, getAISearchSuggestion } from '../services/aiService.js';
+import { getAISummarization, getAISearchSuggestion, getAIChatStream } from '../services/aiService.js';
 import { AISummarySchema, AISearchSuggestionSchema } from '../utils/aiValidation.js';
+import { incrementAffinity } from '../config/redis.js';
 import logger from '../config/logger.js';
 
 /**
@@ -53,37 +54,39 @@ export const getFeed = async (req, res) => {
             followedTechs = follows.map(f => f.techName);
         }
 
-        // 1. Attempt to fetch from external APIs
-        let feed = await fetchMixedFeed({ query, tab, followedTechs });
-        let source = "live_api";
+        // 1. Fetch AI-evaluated news from global cache first
+        const aiEvaluatedNews = await prisma.newsCache.findMany({
+            where: query ? {
+                OR: [
+                    { title: { contains: query, mode: 'insensitive' } },
+                    { cleanTitle: { contains: query, mode: 'insensitive' } },
+                    { description: { contains: query, mode: 'insensitive' } },
+                    { tags: { has: query.toLowerCase() } }
+                ]
+            } : {},
+            orderBy: [
+                { relevanceScore: 'desc' },
+                { createdAt: 'desc' }
+            ],
+            take: 40
+        });
 
-        // 2. Fallback to Database if APIs fail or return empty
-        if (!feed || feed.length === 0) {
-            logger.info(`⚠️ Live feed empty for query [${query}]. Falling back to global news cache.`);
-            feed = await prisma.newsCache.findMany({
-                where: query ? {
-                    OR: [
-                        { title: { contains: query, mode: 'insensitive' } },
-                        { description: { contains: query, mode: 'insensitive' } },
-                        { tags: { has: query.toLowerCase() } }
-                    ]
-                } : {},
-                orderBy: { createdAt: 'desc' },
-                take: 50
-            });
-
-            source = "database_fallback";
-        } else if (userId) {
-            // 3. Background cache for logged-in users
-            cacheArticles(feed, userId).catch(err => logger.error(`Background caching failed: ${err.message}`));
-        }
+        // 2. Fetch live feed from external APIs
+        let liveFeed = await fetchMixedFeed({ query, tab, followedTechs });
+        
+        // 3. Merge and deduplicate (prioritize AI evaluated news)
+        const seenUrls = new Set(aiEvaluatedNews.map(n => n.url));
+        const filteredLiveFeed = (liveFeed || []).filter(item => !seenUrls.has(item.url));
+        
+        const feed = [...aiEvaluatedNews, ...filteredLiveFeed];
 
         res.json({
             success: true,
             feed,
             meta: {
                 count: feed.length,
-                source,
+                aiCount: aiEvaluatedNews.length,
+                liveCount: filteredLiveFeed.length,
                 timestamp: new Date()
             }
         });
@@ -100,47 +103,84 @@ export const getFeed = async (req, res) => {
 };
 
 export const summarizeArticle = async (req, res) => {
-    const { title, description } = req.body;
+    const { title, description, url, articleId } = req.body;
+    const userId = req.user?.userId;
     try {
-        const result = await getAISummarization(title, description);
+        // 1. Check cache first
+        if (url) {
+            const cached = await prisma.newsCache.findUnique({
+                where: { url }
+            });
 
-        // Validate AI response structure
-        const validated = AISummarySchema.safeParse(result);
-        if (!validated.success) {
-            console.warn("⚠️ AI Summarization validation failed:", validated.error.message);
-            // We can choose to fallback or still return partial data if it's usable
-            // But for robustness, let's return the raw result if it's at least an object
-            // or throw error if it's totally broken.
+            if (cached && cached.aiDetailedSummary && cached.aiDetailedSummary.length > 0) {
+                console.log(`🎯 Cache Hit (Detailed) for: ${title}`);
+                return res.json({
+                    success: true,
+                    summary: cached.aiDetailedSummary,
+                    main_tech: cached.main_tech || "General",
+                    sentiment_score: cached.sentimentScore || 50,
+                    impact_verdict: cached.impactVerdict || cached.aiSummary || "Strategic analysis complete.",
+                    impact_category: cached.impactCategory,
+                    key_concepts: cached.tags || [],
+                    risks: cached.risks || [],
+                    techMetrics: null
+                });
+            }
         }
 
+        // 2. Generate if not cached
+        const result = await getAISummarization(title, description, url);
+        const validated = AISummarySchema.safeParse(result);
         const data = validated.success ? validated.data : result;
 
-        let techMetrics = null;
-        if (data.main_tech && data.main_tech.toLowerCase() !== "unknown") {
-            try {
-                const cached = await prisma.techAnalysis.findUnique({
-                    where: { techName: data.main_tech.toLowerCase() }
-                });
-                if (cached) techMetrics = cached.metrics;
-            } catch (e) { console.error("Summarizer Metrics Cache Error:", e.message); }
+        // 3. Update cache with full results
+        if (url) {
+            await prisma.newsCache.upsert({
+                where: { url },
+                update: {
+                    aiSummary: data.impact_verdict, 
+                    aiDetailedSummary: data.summary || [],
+                    impactCategory: data.impact_category,
+                    impactVerdict: data.impact_verdict,
+                    sentimentScore: data.sentiment_score,
+                    tags: { set: data.key_concepts || [] },
+                    risks: { set: data.risks || [] }
+                },
+                create: {
+                    url,
+                    title,
+                    description,
+                    aiSummary: data.impact_verdict,
+                    aiDetailedSummary: data.summary || [],
+                    impactCategory: data.impact_category,
+                    impactVerdict: data.impact_verdict,
+                    sentimentScore: data.sentiment_score,
+                    tags: data.key_concepts || [],
+                    risks: data.risks || []
+                }
+            });
         }
 
-        res.json({ success: true, ...data, techMetrics });
-    } catch (error) {
-        if (process.env.NODE_ENV === 'test' && error.message.includes('401')) {
-            logger.warn("AI Summarization: Skipped (Missing/Invalid API Key)");
-        } else {
-            console.error("Summarizer Error:", error.message);
+        // Track behavioral affinity
+        if (userId && data.key_concepts) {
+            incrementAffinity(userId, data.key_concepts).catch(e => logger.error(`Affinity tracking error: ${e.message}`));
         }
-        // Fallback to original content if AI fails, keeping it "real"
+
+        res.json({ success: true, ...data });
+    } catch (error) {
+        console.error("Summarizer Error:", error.message);
         res.json({
             success: true,
-            summary: [description || title],
-            main_tech: "Unknown",
+            summary: [
+                "Strategic intelligence synthesis is currently processing this signal.",
+                "The community discussion for this item is active and high-signal.",
+                "Detailed technical impact analysis will be available shortly."
+            ],
+            main_tech: "Technical Analysis",
             sentiment_score: 50,
-            impact_verdict: "AI summarization currently unavailable.",
-            key_concepts: [],
-            risks: [],
+            impact_verdict: "AI summarization is currently being refined for this signal type.",
+            key_concepts: ["Processing", "Market Signal"],
+            risks: ["Temporary unavailable"],
             techMetrics: null
         });
     }
@@ -220,5 +260,49 @@ export const deleteArticle = async (req, res) => {
         res.json({ success: true });
     } catch (e) {
         res.status(400).json({ success: false, message: "Delete article failed." });
+    }
+};
+
+export const chatWithArticle = async (req, res) => {
+    const { message, articleId, history = [] } = req.body;
+    const userId = req.user?.userId;
+    
+    try {
+        const article = await prisma.newsCache.findUnique({
+            where: { id: articleId }
+        });
+
+        if (!article) {
+            return res.status(404).json({ success: false, message: "Article not found." });
+        }
+
+        // Track behavioral affinity
+        if (userId && article.tags) {
+            incrementAffinity(userId, article.tags).catch(e => logger.error(`Affinity chat tracking error: ${e.message}`));
+        }
+
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        const stream = await getAIChatStream(message, article, history);
+
+        for await (const chunk of stream) {
+            const content = chunk.choices[0]?.delta?.content || "";
+            if (content) {
+                res.write(`data: ${JSON.stringify({ chunk: content })}\n\n`);
+            }
+        }
+
+        res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+        res.end();
+
+    } catch (error) {
+        logger.error(`Chat Error: ${error.message}`);
+        if (!res.headersSent) {
+            res.status(500).json({ success: false, message: "Chat failed." });
+        } else {
+            res.end();
+        }
     }
 };

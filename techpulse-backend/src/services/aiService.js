@@ -53,39 +53,155 @@ export const fetchSentiment = async (tech) => {
     }
 };
 
-export const getAISummarization = async (title, description) => {
+export const scrapeArticle = async (url) => {
+    try {
+        console.log(`🌐 Scraping full content from: ${url}`);
+        const response = await fetch(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+            signal: AbortSignal.timeout(5000) // 5s timeout
+        });
+        
+        if (!response.ok) return null;
+        const html = await response.text();
+        
+        // Basic extraction: remove scripts, styles, and extract text
+        const cleanText = html
+            .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gi, "")
+            .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, "")
+            .replace(/<[^>]*>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 3000); // ⚡ Optimized: Reduced from 8k to 3k chars to save tokens
+            
+        return cleanText.length > 200 ? cleanText : null;
+    } catch (e) {
+        console.error(`❌ Scrape failed for ${url}:`, e.message);
+        return null;
+    }
+};
+
+export const getAISummarization = async (title, description, url = null) => {
+    let content = description;
+    
+    // ⚡ Optimization: Only scrape if description is extremely low quality/short
+    const needsScrape = url && (
+        description.toLowerCase().includes('comments') || 
+        description.length < 300 || 
+        description.toLowerCase().includes('strategic technical discussion')
+    );
+
+    if (needsScrape) {
+        const scraped = await scrapeArticle(url);
+        if (scraped) content = scraped;
+    }
+
+    // If still no content, or content is too short, we can't do a real synthesis
+    if (!content || content.length < 50 || content === 'Comments') {
+        throw new Error("Insufficient signal content for strategic synthesis.");
+    }
+
     const prompt = `
-        Analyze this tech news item for a high-level executive dashboard:
+        Analyze this tech news. If it's a long engineering blog (e.g. from Cloudflare, Netflix, Meta), focus on architectural decisions, performance trade-offs, and cost implications.
+        
         Title: ${title}
-        Context: ${description}
+        Content: ${content}
         
         Task:
-        1. Summarize the core development in 6-10 detailed, high-impact bullet points. Each point should be a complete thought (15-20 words).
-        2. Identify the 'main_tech' mentioned.
-        3. Provide a 'sentiment_score' (0-100).
-        4. Write a 2-sentence 'impact_verdict' explaining the long-term significance of this news for the industry.
-        5. Extract 5-6 'key_concepts' or 'technical_tags' that define the technical domain (e.g., "Event Loop", "Memory Safety", "Low-latency").
-        6. Identify 'potential_risks' or 'challenges' associated with this development (1-2 items).
+        1. 3-5 high-impact bullet points summary. For long-form blogs, extract specific architectural shifts or technical solutions.
+        2. 'main_tech' mentioned.
+        3. 'sentiment_score' (0-100).
+        4. 1-sentence 'impact_verdict'.
+        5. 'impact_category': "SECURITY", "MARKET", "AI", "INFRA", "OSS", "PRODUCT", or "REG".
+        6. 3 'key_concepts'.
+        7. 1 'potential_risk'.
 
-        Respond strictly with a valid JSON object matching this schema:
+        JSON only:
         {
-            "summary": ["string", "string", "string", "string", "string"],
+            "summary": ["string"],
             "main_tech": "string",
             "sentiment_score": number,
             "impact_verdict": "string",
-            "key_concepts": ["string", "string", "string", "string", "string"],
-            "risks": ["string", "string"]
+            "impact_category": "string",
+            "key_concepts": ["string"],
+            "risks": ["string"]
         }
     `;
 
     const completion = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
+        model: "llama-3.1-8b-instant", // ⚡ Optimized: Switched from 70b to 8b for 10x lower token cost
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
         response_format: { type: "json_object" }
     });
 
     return JSON.parse(completion.choices[0].message.content);
+};
+
+export const evaluateArticle = async (content) => {
+    const prompt = `
+        Evaluate the following technical news content for its relevance to professional developers and strategic technology trends.
+        
+        Content: ${content.slice(0, 2000)}
+        
+        Task:
+        1. Assign a 'relevanceScore' (0-100) based on how much this affects the broader tech ecosystem.
+        2. Assign a 'credibilityScore' (0-100) based on the technical depth and source quality.
+        3. Determine the 'impactHorizon': "Immediate", "Short-term", "Long-term", or "Noise".
+        4. Determine the 'impactCategory': Choose ONE from ["SECURITY", "MARKET", "AI BREAKTHROUGH", "INFRASTRUCTURE", "OPEN SOURCE", "REGULATION", "HARDWARE"].
+        5. Provide a 'cleanTitle': A concise, professional title removing clickbait.
+        6. Provide a 'summary': A 2-sentence strategic summary of why this matters to a senior developer.
+
+        Respond strictly with a valid JSON object matching this schema:
+        {
+            "relevanceScore": number,
+            "credibilityScore": number,
+            "impactHorizon": "string",
+            "impactCategory": "string",
+            "cleanTitle": "string",
+            "summary": "string"
+        }
+    `;
+
+    return await withRetry(async () => {
+        const completion = await groq.chat.completions.create({
+            model: "llama-3.3-70b-versatile",
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.1,
+            response_format: { type: "json_object" }
+        });
+        return JSON.parse(completion.choices[0].message.content);
+    });
+};
+
+export const getAIChatStream = async (message, article, history = []) => {
+    const prompt = `
+        You are the TechPulse Intelligence Assistant. You are helping a developer analyze a specific news article.
+        
+        ARTICLE CONTEXT:
+        Title: ${article.cleanTitle || article.title}
+        Source: ${article.source}
+        Summary: ${article.description}
+        AI Metadata: Relevance ${article.relevanceScore}%, Credibility ${article.credibilityScore}%, Impact: ${article.impactHorizon}
+
+        INSTRUCTIONS:
+        1. Answer the user's question based on the provided article context.
+        2. If the user asks something outside the context, try to relate it back to the tech mentioned in the article.
+        3. Keep responses technical, concise, and objective.
+        4. Use markdown for formatting (bolding, lists, code snippets).
+    `;
+
+    return await withRetry(async () => {
+        return await groq.chat.completions.create({
+            model: "llama-3.3-70b-versatile",
+            messages: [
+                { role: "system", content: prompt },
+                ...history,
+                { role: "user", content: message }
+            ],
+            temperature: 0.3,
+            stream: true
+        });
+    });
 };
 
 export const getAIAnalysisStream = async (userTech, topRepo, sentiment) => {
@@ -99,6 +215,7 @@ export const getAIAnalysisStream = async (userTech, topRepo, sentiment) => {
         
         Strict JSON Schema:
         {
+            "definition": "string (A concise, 1-2 sentence technical definition of what this technology is)",
             "metrics": { 
                 "github_score": number (0-100 based on momentum/popularity), 
                 "job_score": number (0-100 based on market demand), 
@@ -107,7 +224,7 @@ export const getAIAnalysisStream = async (userTech, topRepo, sentiment) => {
             "insight": { "verdict": "string", "explanation": "string", "future_outlook": "string" },
             "sentiment_keywords": ["string", "string", "string"],
             "tech_stack": [{ "name": "string", "role": "string", "reason": "string" }],
-            "roadmap": [{ "week": number, "topic": "string", "description": "string" }]
+            "roadmap": [{ "week": number, "topic": "string", "description": "string" }] // Provide 3-5 high-signal items
         }
     `;
 

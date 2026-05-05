@@ -79,32 +79,48 @@ export const getMetrics = async (req, res) => {
 
         const targetTechs = CATEGORY_MAP[category] || CATEGORY_MAP.languages;
 
-        // Dynamic aggregate data from the global history (REAL reports)
-        // We filter by the technologies that belong to this category
-        const realReports = await prisma.techAnalysis.findMany({
+        // 1. Fetch high-signal news from the sanitized database
+        const highSignalNews = await prisma.newsCache.findMany({
             where: {
-                techName: {
-                    in: targetTechs,
-                    mode: 'insensitive'
-                }
+                relevanceScore: { gte: 70 }
+            },
+            select: {
+                cleanTitle: true,
+                tags: true,
+                relevanceScore: true,
+                createdAt: true
             },
             orderBy: { createdAt: 'desc' },
-            take: 20
+            take: 100
         });
 
-        // Filter and map real reports to the expected trend format
-        const dynamicTrends = realReports.map(report => ({
-            techName: report.techName,
-            score: (report.metrics.github_score + report.metrics.job_score + report.metrics.stability_score) / 3,
-            sources: {
-                github: report.metrics.github_score,
-                jobs: report.metrics.job_score,
-                stability: report.metrics.stability_score
-            },
-            fill: '#' + Math.floor(Math.random()*16777215).toString(16)
-        }));
+        // 2. Calculate trends based on high-signal news frequency and quality
+        const dynamicTrends = targetTechs.map(tech => {
+            const techLower = tech.toLowerCase();
+            const relevantNews = highSignalNews.filter(n => 
+                (n.cleanTitle?.toLowerCase().includes(techLower)) || 
+                (n.tags?.some(t => t.toLowerCase().includes(techLower)))
+            );
 
-        // Generate seeded defaults based on the category if we don't have enough real data
+            if (relevantNews.length === 0) return null;
+
+            const avgRelevance = relevantNews.reduce((acc, n) => acc + n.relevanceScore, 0) / relevantNews.length;
+            const recentCount = relevantNews.filter(n => n.createdAt > new Date(Date.now() - 48 * 60 * 60 * 1000)).length;
+            
+            // Score = (Avg Relevance * 0.7) + (Frequency Factor * 0.3)
+            const score = Math.min(100, (avgRelevance * 0.7) + (Math.min(relevantNews.length, 10) * 3));
+            
+            return {
+                techName: tech,
+                score: score,
+                momentum: (recentCount / (relevantNews.length || 1)) * 100,
+                demand: avgRelevance,
+                sentiment: 50 + (score / 2),
+                fill: '#' + Math.floor(Math.random()*16777215).toString(16)
+            };
+        }).filter(Boolean).sort((a, b) => b.score - a.score);
+
+        // Fallback to seeded defaults if no high-signal news matches
         const getSeededDefaults = (cat) => {
             const techs = CATEGORY_MAP[cat] || CATEGORY_MAP.languages;
             return techs.slice(0, 5).map((name, i) => ({
@@ -282,6 +298,7 @@ export const streamAnalysis = async (req, res) => {
         };
 
         const finalAnalysis = {
+            definition: data.definition || "",
             verdict: data.insight?.verdict || "Analysis Complete",
             explanation: data.insight?.explanation || "Strategic report generated.",
             future_outlook: data.insight?.future_outlook || "Stable market presence.",

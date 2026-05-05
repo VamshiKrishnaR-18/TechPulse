@@ -1,4 +1,5 @@
 import { AppError } from './errorHandler.js';
+import { ZodError } from 'zod';
 
 export const validate = (schema) => (req, res, next) => {
   try {
@@ -9,7 +10,12 @@ export const validate = (schema) => (req, res, next) => {
     });
     next();
   } catch (error) {
-    const message = error.errors.map(err => err.message).join(', ');
-    return next(new AppError(message, 400));
+    // 🛡️ Handle Zod Validation Errors
+    if (error instanceof ZodError) {
+      const message = error.issues.map(err => err.message).join(', ');
+      return next(new AppError(message, 400));
+    }
+    // For other unexpected errors, pass to global handler
+    next(error);
   }
 };

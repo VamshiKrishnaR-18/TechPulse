@@ -1,8 +1,77 @@
+import { vi, describe, it, expect, afterAll } from 'vitest';
 import request from 'supertest';
 import { app } from '../../server.js';
 import { PrismaClient } from '@prisma/client';
 
+// Mock AI Services
+vi.mock('../config/groq.js', () => ({
+    default: {
+        chat: {
+            completions: {
+                create: vi.fn().mockResolvedValue({
+                    choices: [{ message: { content: JSON.stringify({ suggestedQuery: 'AI' }) } }]
+                })
+            }
+        }
+    }
+}));
+
+// Mock Redis
+vi.mock('redis', () => ({
+    createClient: vi.fn().mockReturnValue({
+        on: vi.fn(),
+        connect: vi.fn().mockResolvedValue(null),
+        get: vi.fn().mockResolvedValue(null),
+        set: vi.fn().mockResolvedValue(null),
+    })
+}));
+
+// Mock Prisma
+vi.mock('@prisma/client', () => {
+    const mockPrisma = {
+        user: {
+            count: vi.fn().mockResolvedValue(0),
+            findUnique: vi.fn().mockImplementation(({ where }) => {
+                if (where.email.includes('example.com')) {
+                    return Promise.resolve({ id: '1', email: where.email, password: 'hashedpassword' });
+                }
+                return Promise.resolve(null);
+            }),
+            create: vi.fn().mockResolvedValue({ id: '2', email: 'test@example.com' }),
+        },
+        newsCache: {
+            findMany: vi.fn().mockResolvedValue([]),
+        },
+        follow: {
+            findMany: vi.fn().mockResolvedValue([]),
+        },
+        $disconnect: vi.fn().mockResolvedValue(null),
+    };
+    return {
+        PrismaClient: class {
+            constructor() {
+                return mockPrisma;
+            }
+        }
+    };
+});
+
+
+
+
+// Mock bcryptjs
+vi.mock('bcryptjs', () => ({
+    default: {
+        hash: vi.fn().mockResolvedValue('hashedpassword'),
+        compare: vi.fn().mockImplementation((password, hashed) => {
+            return Promise.resolve(password === 'Password123!' && hashed === 'hashedpassword');
+        }),
+    }
+}));
+
 const prisma = new PrismaClient();
+
+
 
 describe('🚀 TechPulse API Integration Tests', () => {
     

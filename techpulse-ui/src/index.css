@@ -2,8 +2,8 @@
 @import "tailwindcss";
 
 @theme {
-  --color-tp-dark: #0b0e14;
-  --color-tp-surface: #1a1d23;
+  --color-tp-dark: #0f0f0f;
+  --color-tp-surface: #1e1e1e;
   --color-tp-accent: #3b82f6;
   --color-tp-indigo: #6366f1;
   --color-tp-border: rgba(255, 255, 255, 0.05);

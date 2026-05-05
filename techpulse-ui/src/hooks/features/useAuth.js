@@ -5,6 +5,7 @@ import { api } from '../../services/apiService.js';
 
 export const useAuth = () => {
   const [authMode, setAuthMode] = useState(null);
+  const [authReason, setAuthReason] = useState(null);
   const [authData, setAuthData] = useState({ email: '', password: '' });
   
   const [user, setUser] = useState(() => {
@@ -13,8 +14,14 @@ export const useAuth = () => {
   });
   const [token, setToken] = useState(localStorage.getItem('tp_token'));
 
+  const triggerAuth = (mode, reason = null) => {
+    setAuthMode(mode);
+    setAuthReason(reason);
+  };
+
   const authMutation = useMutation({
-    mutationFn: (data) => api.auth(authMode, data),
+    mutationFn: ({ data, interestedTags, contentPreferences }) => 
+      api.auth(authMode, { ...data, interestedTags, contentPreferences }),
     onSuccess: (data) => {
       if (data.success) {
         setToken(data.token);
@@ -22,16 +29,18 @@ export const useAuth = () => {
         localStorage.setItem('tp_token', data.token);
         localStorage.setItem('tp_user', JSON.stringify(data.user)); 
         setAuthMode(null);
-        toast.success(`Welcome back!`);
+        setAuthReason(null);
+        toast.success(`Welcome to TechPulse!`);
       } else {
         toast.error(data.message || 'Authentication failed');
       }
     },
   });
 
-  const handleAuth = (e) => {
-    e.preventDefault();
-    authMutation.mutate(authData);
+  const handleAuth = (e, interestedTags = [], contentPreferences = [], dataOverride = null) => {
+    if (e) e.preventDefault();
+    const finalData = dataOverride || authData;
+    authMutation.mutate({ data: finalData, interestedTags, contentPreferences });
   };
 
   const handleLogout = () => {
@@ -43,7 +52,8 @@ export const useAuth = () => {
   };
 
   return { 
-    authMode, setAuthMode, authData, setAuthData, 
+    authMode, setAuthMode, authReason, setAuthReason, triggerAuth,
+    authData, setAuthData, 
     user, token, handleAuth, handleLogout 
   };
 };

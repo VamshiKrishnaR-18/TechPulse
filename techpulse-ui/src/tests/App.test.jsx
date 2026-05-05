@@ -80,23 +80,32 @@ describe('App Root Component', () => {
       </QueryClientProvider>
     );
     
-    // Check for landing page elements
-    expect(screen.getByText(/TechPulse/i)).toBeInTheDocument();
-    expect(screen.getByText(/Pulse/i)).toBeInTheDocument();
+    // Check for landing page elements - use getAllByText because it appears multiple times
+    expect(screen.getAllByText(/TechPulse/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Pulse/i).length).toBeGreaterThan(0);
   });
 
   it('renders Sidebar and Header components', () => {
-    vi.spyOn(useTechPulseHook, 'useTechPulse').mockReturnValue(mockAppState);
+    // Mock token to show dashboard
+    const authenticatedState = { ...mockAppState, token: 'fake-token' };
+    vi.spyOn(useTechPulseHook, 'useTechPulse').mockReturnValue(authenticatedState);
     
+    // Also mock localStorage
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem');
+    getItemSpy.mockReturnValue('fake-token');
+
     render(
       <QueryClientProvider client={queryClient}>
         <App />
       </QueryClientProvider>
     );
     
-    // Sidebar should be present
+    // Sidebar should be present (aside tag)
     expect(screen.getByRole('complementary')).toBeInTheDocument();
-    // Header should be present
+    // Header should be present (header tag)
     expect(screen.getByRole('banner')).toBeInTheDocument();
+
+    getItemSpy.mockRestore();
   });
+
 });

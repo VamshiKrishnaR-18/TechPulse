@@ -86,6 +86,55 @@ const AnalysisDashboard = ({ result, result2, streamingText, startQuickAnalyze, 
           </div>
        </motion.div>
 
+       {/* Intelligence Brief / Definition */}
+       {!result2 && result.ai_insight.definition && (
+          <motion.div 
+             variants={itemVariants}
+             className="max-w-3xl bg-tp-accent/[0.03] border border-tp-accent/10 p-8 rounded-[2.5rem] relative overflow-hidden group"
+          >
+             <div className="absolute top-0 right-0 w-32 h-32 bg-tp-accent/5 blur-3xl -mr-16 -mt-16 group-hover:bg-tp-accent/10 transition-colors"></div>
+             <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 rounded-xl bg-tp-accent/10 flex items-center justify-center text-tp-accent border border-tp-accent/20">
+                   <HelpCircle size={16} />
+                </div>
+                <div>
+                   <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Intelligence Brief</h3>
+                   <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Core Technical Definition</p>
+                </div>
+             </div>
+             <p className="text-base text-slate-300 font-bold leading-relaxed italic relative z-10">
+                &quot;{result.ai_insight.definition}&quot;
+             </p>
+          </motion.div>
+       )}
+
+       {result2 && (result.ai_insight.definition || result2.ai_insight.definition) && (
+          <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+             {result.ai_insight.definition && (
+                <div className="bg-white/5 border border-white/5 p-6 rounded-[2rem] space-y-3">
+                   <div className="flex items-center gap-2">
+                      <HelpCircle size={14} className="text-tp-accent" />
+                      <span className="text-[10px] font-black text-tp-accent uppercase tracking-widest">{result.technology} Brief</span>
+                   </div>
+                   <p className="text-sm text-slate-300 font-bold leading-relaxed italic">
+                      &quot;{result.ai_insight.definition}&quot;
+                   </p>
+                </div>
+             )}
+             {result2.ai_insight.definition && (
+                <div className="bg-white/5 border border-white/5 p-6 rounded-[2rem] space-y-3">
+                   <div className="flex items-center gap-2">
+                      <HelpCircle size={14} className="text-tp-indigo" />
+                      <span className="text-[10px] font-black text-tp-indigo uppercase tracking-widest">{result2.technology} Brief</span>
+                   </div>
+                   <p className="text-sm text-slate-300 font-bold leading-relaxed italic">
+                      &quot;{result2.ai_insight.definition}&quot;
+                   </p>
+                </div>
+             )}
+          </motion.div>
+       )}
+
        {/* Score Visualization Grid */}
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {[

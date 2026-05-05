@@ -1,10 +1,65 @@
 import cron from 'node-cron';
 import prisma from '../config/prisma.js';
-import { fetchSentiment, getAIAnalysisStream } from './aiService.js';
-import { AIAnalysisSchema, safeParseAIJSON } from '../utils/aiValidation.js';
+import { fetchSentiment, getAIAnalysisStream, evaluateArticle, getAISummarization } from './aiService.js';
+import { fetchRSSFeeds } from './newsService.js';
+import { DigestService } from './digestService.js';
+import { AIAnalysisSchema, safeParseAIJSON, AISummarySchema } from '../utils/aiValidation.js';
+import { emitNewArticle } from '../config/socket.js';
 import logger from '../config/logger.js';
 
 export const initCronJobs = () => {
+    // 0. Daily Intelligence Digest (8:00 AM)
+    cron.schedule('0 8 * * *', async () => {
+        logger.info("📡 Dispatching Daily Intelligence Digests...");
+        await DigestService.processDailyDigests();
+    });
+
+    // 0. News Intelligence Worker (Run every 5 minutes)
+    // Find unsummarized articles and process them
+    cron.schedule('*/5 * * * *', async () => {
+        logger.info("🧠 Starting News Intelligence Worker...");
+        try {
+            const unsummarized = await prisma.newsCache.findMany({
+                where: { 
+                    OR: [
+                        { aiSummary: null },
+                        { impactCategory: null }
+                    ]
+                },
+                take: 10 // Increased batch size for faster initial processing
+            });
+
+            for (const article of unsummarized) {
+                try {
+                    logger.info(`🤖 Summarizing: ${article.title}`);
+                    // Trigger scrape + summary
+                    const result = await getAISummarization(article.title, article.description || "", article.url);
+                    
+                    const validated = AISummarySchema.safeParse(result);
+                    const data = validated.success ? validated.data : result;
+
+                    await prisma.newsCache.update({
+                        where: { id: article.id },
+                        data: {
+                            aiSummary: data.impact_verdict || data.summary[0], 
+                            aiDetailedSummary: data.summary || [],
+                            impactCategory: data.impact_category || "MARKET",
+                            impactVerdict: data.impact_verdict,
+                            sentimentScore: data.sentiment_score,
+                            impactHorizon: data.impact_horizon || "Short-term",
+                            tags: { push: data.key_concepts || [] },
+                            risks: data.risks || []
+                        }
+                    });
+                } catch (err) {
+                    logger.error(`❌ Intelligence Worker Error for [${article.title}]: ${err.message}`);
+                }
+            }
+        } catch (error) {
+            logger.error(`Intelligence Worker Critical Error: ${error.message}`);
+        }
+    });
+
     // 1. Weekly Tech Analysis Refresh (Sunday at midnight)
     cron.schedule('0 0 * * 0', async () => {
         logger.info("🚀 Starting Weekly Tech Analysis Refresh...");
@@ -94,6 +149,67 @@ export const initCronJobs = () => {
             logger.info(`✅ Cleanup Complete: Purged ${deleted.count} old articles.`);
         } catch (error) {
             logger.error(`Cleanup Worker Error: ${error.message}`);
+        }
+    });
+
+    // 3. AI-DRIVEN NEWS INGESTION (Every 4 hours)
+    cron.schedule('0 */4 * * *', async () => {
+        logger.info("📡 Starting AI-Driven RSS Ingestion Pipeline...");
+        try {
+            const articles = await fetchRSSFeeds();
+            logger.info(`📻 Ingested ${articles.length} raw articles. Starting AI evaluation...`);
+
+            let savedCount = 0;
+            let filteredCount = 0;
+
+            for (const article of articles) {
+                try {
+                    // 1. Evaluate with AI
+                    const evaluation = await evaluateArticle(article.title + " " + article.description);
+                    
+                    // 2. Strict Filtering: relevanceScore >= 70 and impactHorizon != "Noise"
+                    if (evaluation.relevanceScore >= 70 && evaluation.impactHorizon !== "Noise") {
+                        const savedArticle = await prisma.newsCache.upsert({
+                            where: { url: article.url },
+                            update: {
+                                relevanceScore: evaluation.relevanceScore,
+                                credibilityScore: evaluation.credibilityScore,
+                                impactHorizon: evaluation.impactHorizon,
+                                impactCategory: evaluation.impactCategory,
+                                cleanTitle: evaluation.cleanTitle,
+                                aiSummary: evaluation.summary
+                            },
+                            create: {
+                                title: article.title,
+                                cleanTitle: evaluation.cleanTitle,
+                                description: article.description,
+                                aiSummary: evaluation.summary,
+                                impactCategory: evaluation.impactCategory,
+                                url: article.url,
+                                source: article.source,
+                                author: article.author,
+                                tags: article.tags,
+                                relevanceScore: evaluation.relevanceScore,
+                                credibilityScore: evaluation.credibilityScore,
+                                impactHorizon: evaluation.impactHorizon,
+                                points: 0
+                            }
+                        });
+
+                        // 3. Emit via socket for real-time dashboard update
+                        emitNewArticle(savedArticle);
+                        
+                        savedCount++;
+                    } else {
+                        filteredCount++;
+                    }
+                } catch (evalError) {
+                    logger.error(`❌ Evaluation Failed for ${article.url}: ${evalError.message}`);
+                }
+            }
+            logger.info(`🏁 Ingestion Complete. Saved: ${savedCount}, Filtered (Noise): ${filteredCount}`);
+        } catch (error) {
+            logger.error(`Ingestion Pipeline Error: ${error.message}`);
         }
     });
 };

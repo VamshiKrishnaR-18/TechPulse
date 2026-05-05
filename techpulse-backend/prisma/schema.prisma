@@ -22,14 +22,26 @@ enum Role {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  role      Role     @default(USER)
-  history   SavedAnalysis[]
-  savedArticles SavedArticle[]
-  followedTechs Follow[]
-  createdAt DateTime @default(now())
+  id                 String          @id @default(uuid())
+  clerkId            String          @unique
+  email              String          @unique
+  password           String?
+  name               String?
+  role               Role            @default(USER)
+  interests          String[]        @default([])
+  interestedTags     String[]        @default([])
+  contentPreferences String[]        @default([])
+  mutedTags          String[]        @default([])
+  minRelevance       Int             @default(0)
+  minCredibility     Int             @default(0)
+  // 🔔 Notifications
+  webhookUrl         String?         // Discord/Slack Webhook
+  notificationType   String          @default("NONE") // NONE, SLACK, DISCORD, EMAIL
+  history            SavedAnalysis[]
+  savedArticles      SavedArticle[]
+  followedTechs      Follow[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 }
 
 // User interests for personalized feed
@@ -66,14 +78,24 @@ model SavedArticle {
 
 // Global News Cache for fallbacks
 model NewsCache {
-  id          String   @id @default(uuid())
-  title       String
-  description String?
-  url         String   @unique
-  source      String
-  image       String?
-  author      String?
-  tags        String[]
-  points      Int      @default(0)
-  createdAt   DateTime @default(now())
+  id               String   @id @default(uuid())
+  title            String
+  cleanTitle       String?
+  description      String?
+  aiSummary        String?
+  aiDetailedSummary String[] @default([])
+  impactCategory   String?
+  impactVerdict    String?
+  url              String   @unique
+  source           String
+  image            String?
+  author           String?
+  tags             String[]
+  points           Int      @default(0)
+  relevanceScore   Int      @default(0)
+  credibilityScore Int      @default(0)
+  impactHorizon    String?
+  sentimentScore   Int?
+  risks            String[] @default([])
+  createdAt        DateTime @default(now())
 }

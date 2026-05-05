@@ -12,10 +12,16 @@ import { initCronJobs } from './src/services/cronService.js';
 import { errorHandler } from './src/middleware/errorHandler.js';
 import logger from './src/config/logger.js';
 import { setupSwagger } from './src/config/swagger.js';
+import { createServer } from 'http';
+import { initSocket } from './src/config/socket.js';
 
 dotenv.config();
 
 const app = express();
+const httpServer = createServer(app);
+
+// Initialize Socket.io
+initSocket(httpServer);
 
 // ==========================================
 // 0. TRUST PROXY (Production Requirement)
@@ -92,7 +98,7 @@ const PORT = process.env.PORT || 5000;
 if (process.env.NODE_ENV !== 'test') {
 
     initCronJobs();
-    app.listen(PORT, () => {
+    httpServer.listen(PORT, () => {
         logger.info(`🚀 Secure TechPulse Orchestrator running on http://localhost:${PORT}`);
     });
 }

@@ -1,44 +1,74 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LayoutDashboard, BookMarked, TrendingUp, Sparkles, LogOut, User, Activity, Zap, ChevronLeft, ChevronRight } from 'lucide-react'
-import { clsx } from 'clsx'
-import { twMerge } from 'tailwind-merge'
+import { 
+  LayoutDashboard, 
+  TrendingUp, 
+  Zap, 
+  BookMarked, 
+  ChevronLeft, 
+  ChevronRight, 
+  User, 
+  LogOut, 
+  Sparkles,
+  Search,
+  Activity,
+  Plus
+} from 'lucide-react'
+import { SignedIn, SignedOut, UserButton } from '@clerk/clerk-react'
+import { cn } from '/src/utils/cn.js'
 
-function cn(...inputs) {
-  return twMerge(clsx(inputs))
-}
-
-const Sidebar = ({ activeTab, setActiveTab, setSummary, setResult, setResult2, startQuickAnalyze, feed, pulseIndex, handleSummarize, token, user, handleLogout, setAuthMode, setTech, setIsVersus }) => {
+const Sidebar = ({ activeTab, setActiveTab, setSummary, setResult, setResult2, startQuickAnalyze, feed, pulseIndex, handleSummarize, user, handleLogout, setAuthMode, setTech, setIsVersus, isOpen, onClose }) => {
   const [isCollapsed, setIsCollapsed] = useState(false)
   
   const navItems = [
-    { id: 'feed', label: 'Market Feed', icon: LayoutDashboard },
+    { id: 'feed', label: 'Intelligence Feed', icon: LayoutDashboard },
+    { id: 'trends', label: 'Global Trends', icon: TrendingUp },
     { id: 'analysis', label: 'Intelligence Lab', icon: Zap },
     { id: 'saved', label: 'Reading List', icon: BookMarked },
-    { id: 'trends', label: 'Global Trends', icon: TrendingUp },
   ]
 
   return (
-    <motion.aside 
-      initial={false}
-      animate={{ width: isCollapsed ? '80px' : '320px' }}
-      transition={{ duration: 0.3, ease: "circOut" }}
-      className="bg-tp-dark border-r border-tp-border flex flex-col sticky top-0 h-screen z-40 relative group/sidebar"
-    >
-        {/* Collapse Toggle */}
-        <button 
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="absolute -right-3 top-10 w-6 h-6 bg-tp-accent rounded-full flex items-center justify-center text-white shadow-lg shadow-tp-accent/20 border border-tp-border z-50 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 hover:scale-110"
-        >
-          {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-        </button>
+    <>
+      {/* Mobile Overlay */}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
+      <motion.aside 
+        initial={false}
+        animate={{ 
+          width: isCollapsed ? '80px' : '320px',
+          x: isOpen ? 0 : (typeof window !== 'undefined' && window.innerWidth < 1024 ? -320 : 0)
+        }}
+        transition={{ duration: 0.3, ease: "circOut" }}
+        className={cn(
+          "bg-tp-dark border-r border-tp-border flex flex-col sticky top-0 h-screen z-50 lg:z-40 group/sidebar transition-transform lg:translate-x-0",
+          "fixed lg:sticky",
+          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        )}
+      >
+          {/* Collapse Toggle (Desktop Only) */}
+          <button 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="hidden lg:flex absolute -right-3 top-10 w-6 h-6 bg-tp-accent rounded-full items-center justify-center text-white shadow-lg shadow-tp-accent/20 border border-tp-border z-50 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 hover:scale-110"
+          >
+            {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
 
         <div className={cn("flex flex-col h-full p-8 overflow-y-auto custom-scrollbar", isCollapsed && "p-4 items-center")}>
           <motion.div 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className={cn("flex items-center gap-3 mb-12 group cursor-pointer", isCollapsed && "mb-8")} 
-            onClick={() => {setActiveTab('feed'); setResult(null); setResult2(null)}}
+            onClick={() => {setActiveTab('feed'); setResult(null); setResult2(null); onClose?.()}}
           >
             <div className="w-10 h-10 bg-tp-accent rounded-2xl flex items-center justify-center text-xl font-black text-white shadow-lg shadow-tp-accent/20 group-hover:rotate-12 transition-all shrink-0">T</div>
             {!isCollapsed && (
@@ -56,7 +86,7 @@ const Sidebar = ({ activeTab, setActiveTab, setSummary, setResult, setResult2, s
             {navItems.map((item) => (
               <button 
                 key={item.id}
-                onClick={() => {setActiveTab(item.id); setSummary(null); setResult(null); setResult2(null)}} 
+                onClick={() => {setActiveTab(item.id); setSummary(null); setResult2(null); setResult(null); onClose?.()}} 
                 className={cn(
                   "nav-btn group relative flex items-center gap-3 w-full",
                   activeTab === item.id ? "bg-tp-accent/10 text-tp-accent" : "hover:bg-white/5 text-slate-500 hover:text-slate-200",
@@ -102,6 +132,7 @@ const Sidebar = ({ activeTab, setActiveTab, setSummary, setResult, setResult2, s
                     setIsVersus(false);
                     setActiveTab('analysis');
                     startQuickAnalyze(t);
+                    onClose?.();
                   }} 
                   className={cn(
                     "w-full flex items-center gap-3 px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-200 hover:bg-white/5 transition-all group",
@@ -162,44 +193,43 @@ const Sidebar = ({ activeTab, setActiveTab, setSummary, setResult, setResult2, s
             )}
           </nav>
 
-          <div className={cn("mt-auto pt-6 border-t border-white/5", isCollapsed && "pt-4")}>
-            {token ? (
-              <div className={cn("flex items-center gap-3 p-3 rounded-2xl hover:bg-white/5 transition-all cursor-pointer group", isCollapsed && "p-1 justify-center")}>
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-tp-accent to-tp-indigo flex items-center justify-center text-xs font-black text-white shadow-lg shadow-tp-accent/10 group-hover:rotate-6 transition-all shrink-0">
-                  {user?.email?.[0].toUpperCase()}
+          {/* Bottom Actions */}
+          <div className={cn("mt-auto pt-8 border-t border-white/5 space-y-4", isCollapsed && "items-center")}>
+            <SignedIn>
+              <div className="space-y-4">
+                <div className={cn("flex items-center gap-3 px-4 py-2 bg-white/5 rounded-2xl", isCollapsed && "px-2 justify-center")}>
+                  <UserButton 
+                    appearance={{
+                      elements: {
+                        userButtonAvatarBox: "w-8 h-8 rounded-xl",
+                        userButtonPopoverCard: "bg-tp-dark border border-white/10",
+                        userButtonPopoverFooter: "hidden"
+                      }
+                    }}
+                  />
+                  {!isCollapsed && (
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-black text-white truncate">{user?.email}</p>
+                      <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Strategic Access</p>
+                    </div>
+                  )}
                 </div>
-                {!isCollapsed && (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex-1 overflow-hidden"
-                  >
-                    <div className="text-xs font-bold text-white truncate">{user?.email}</div>
-                    <button 
-                      onClick={handleLogout} 
-                      className="text-[9px] text-slate-500 hover:text-rose-400 uppercase font-black flex items-center gap-1 mt-0.5 transition-colors"
-                    >
-                      <LogOut size={8} />
-                      Sign Out
-                    </button>
-                  </motion.div>
-                )}
               </div>
-            ) : (
+            </SignedIn>
+            
+            <SignedOut>
               <button 
-                onClick={() => setAuthMode('signup')} 
-                className={cn(
-                  "w-full py-4 bg-tp-accent/10 hover:bg-tp-accent text-tp-accent hover:text-white border border-tp-accent/20 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-tp-accent/5 flex items-center justify-center gap-2",
-                  isCollapsed && "px-0 h-12"
-                )}
+                onClick={() => setAuthMode('signup')}
+                className={cn("flex items-center gap-3 w-full px-4 py-3 bg-tp-accent text-black text-[10px] font-black uppercase tracking-widest rounded-2xl hover:scale-[1.02] transition-all shadow-lg shadow-tp-accent/20", isCollapsed && "p-3 justify-center")}
               >
-                <User size={12} />
-                {!isCollapsed && <span>Join TechPulse</span>}
+                <Sparkles size={16} />
+                {!isCollapsed && <span>Initialize Intel</span>}
               </button>
-            )}
+            </SignedOut>
           </div>
         </div>
     </motion.aside>
+    </>
   )
 }
 

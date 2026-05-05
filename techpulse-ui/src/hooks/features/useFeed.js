@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '../../services/apiService.js';
+import { io } from 'socket.io-client';
 
 export const useFeed = () => {
+  const queryClient = useQueryClient();
   const [feedSearchQuery, setFeedSearchQuery] = useState('');
   const [debouncedFeedQuery, setDebouncedFeedQuery] = useState('');
   const [suggestedQuery, setSuggestedQuery] = useState('');
@@ -14,12 +16,45 @@ export const useFeed = () => {
   const [pulseIndex, setPulseIndex] = useState(0);
 
   // 1. Fetch Feed
-  const { data: feedData } = useQuery({
+  const { data: feedData, isLoading: isFeedLoading } = useQuery({
     queryKey: ['feed', activeFeedTab, debouncedFeedQuery],
     queryFn: () => api.fetchFeed({ query: debouncedFeedQuery, tab: activeFeedTab }),
     select: (data) => data.success ? data.feed : [],
   });
   const feed = useMemo(() => feedData || [], [feedData]);
+
+  // Socket.io for Real-time Updates
+  useEffect(() => {
+    const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
+      withCredentials: true
+    });
+
+    socket.on('new_article', (newArticle) => {
+      // Intelligently update the feed cache without full refresh
+      queryClient.setQueryData(['feed', activeFeedTab, debouncedFeedQuery], (oldData) => {
+        if (!oldData || !oldData.success) return oldData;
+        
+        // Prevent duplicates
+        if (oldData.feed.some(item => item.url === newArticle.url)) return oldData;
+
+        return {
+          ...oldData,
+          feed: [newArticle, ...oldData.feed]
+        };
+      });
+
+      // Notify user of new intelligence
+      toast('📡 New Intelligence Detected', {
+        description: newArticle.cleanTitle || newArticle.title,
+        action: {
+          label: 'View',
+          onClick: () => window.scrollTo({ top: 0, behavior: 'smooth' })
+        }
+      });
+    });
+
+    return () => socket.disconnect();
+  }, [queryClient, activeFeedTab, debouncedFeedQuery]);
 
   // 2. Filter Feed
   const filteredFeed = useMemo(() => {
@@ -92,6 +127,7 @@ export const useFeed = () => {
     feed: filteredFeed, pulseIndex,
     feedSearchQuery, setFeedSearchQuery, suggestedQuery, handleSearchChange, applySuggestion,
     activeFeedTab, setActiveFeedTab, visibleFeedCount, loadMoreFeed: () => setVisibleFeedCount(prev => prev + 12),
-    summary, setSummary, isSummarizing, handleSummarize
+    summary, setSummary, isSummarizing, handleSummarize,
+    isFeedLoading
   };
 };

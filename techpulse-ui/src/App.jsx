@@ -14,6 +14,7 @@ import {
   BookMarked,
   ChevronLeft,
   ChevronRight,
+  Menu,
 } from "lucide-react";
 import { useTechPulse } from "./hooks/useTechPulse";
 import Sidebar from "./components/layout/Sidebar";
@@ -26,13 +27,14 @@ import SummarySidebar from "./components/feed/SummarySidebar";
 import CommandPalette from "./components/layout/CommandPalette";
 import LandingPage from "./components/layout/LandingPage";
 import AdminDashboard from "./components/admin/AdminDashboard";
+import OnboardingWizard from './components/auth/OnboardingWizard';
+import IntelligenceChat from './components/feed/IntelligenceChat';
 
 function App() {
   const reportRef = useRef(null);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [showLanding, setShowLanding] = useState(
-    !localStorage.getItem("tp_token"),
-  );
+  const [showLanding, setShowLanding] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const {
     tech,
     setTech,
@@ -60,11 +62,15 @@ function App() {
     summary,
     setSummary,
     isSummarizing,
+    isFeedLoading,
     isVersus,
     setIsVersus,
     dbOffline,
     authMode,
     setAuthMode,
+    authReason,
+    setAuthReason,
+    triggerAuth,
     authData,
     setAuthData,
     user,
@@ -88,6 +94,7 @@ function App() {
     isGuestHistory,
   } = useTechPulse();
 
+  const [activeChatArticle, setActiveChatArticle] = useState(null);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -138,6 +145,37 @@ function App() {
     exit: { opacity: 0, y: -10 },
   };
 
+  const handleStart = (target) => {
+    if (target === 'onboarding') {
+      setAuthMode('signup');
+      return;
+    }
+    if (typeof target === 'string') setActiveTab(target);
+    setShowLanding(false);
+  };
+
+  const handleOnboardingComplete = async (data) => {
+    try {
+      // Sync preferences to backend via the preferences API
+      await api.updatePreferences({
+        interestedTags: data.interestedTags,
+        contentPreferences: data.contentPreferences,
+        interests: data.interestedTags // Legacy field
+      });
+      
+      setAuthMode(null);
+      setShowLanding(false);
+      setActiveTab('feed');
+      toast.success('Preferences synchronized. Welcome back!');
+    } catch (err) {
+      console.error("Sync error:", err);
+      // Even if sync fails, we let them into the feed since they are authenticated via Clerk
+      setAuthMode(null);
+      setShowLanding(false);
+      setActiveTab('feed');
+    }
+  };
+
   return (
     <div className="h-screen bg-tp-dark text-slate-200 flex font-tp-sans selection:bg-tp-accent/30 overflow-hidden">
       <AnimatePresence mode="wait">
@@ -151,10 +189,7 @@ function App() {
             className="w-full h-screen overflow-y-auto custom-scrollbar"
           >
             <LandingPage
-              onStart={(tabId = "feed") => {
-                if (tabId) setActiveTab(tabId);
-                setShowLanding(false);
-              }}
+              onStart={handleStart}
               user={user}
             />
           </motion.div>
@@ -193,26 +228,72 @@ function App() {
               setAuthMode={setAuthMode}
               setTech={setTech}
               setIsVersus={setIsVersus}
+              isOpen={isSidebarOpen}
+              onClose={() => setIsSidebarOpen(false)}
             />
 
             {/* Main Content Area */}
-            <main className="flex-1 flex flex-col relative min-w-0">
-              <Header activeTab={activeTab} setActiveTab={setActiveTab} />
+            <main className="flex-1 flex flex-col relative min-w-0 bg-tp-dark overflow-hidden">
+              {activeTab !== 'feed' && (
+                <Header 
+                  activeTab={activeTab} 
+                  setActiveTab={setActiveTab} 
+                  user={user}
+                  onNewReport={() => setActiveTab('analysis')}
+                  onOpenSidebar={() => setIsSidebarOpen(true)}
+                />
+              )}
 
-              <div className="flex-1 overflow-y-auto p-8 max-w-7xl w-full mx-auto custom-scrollbar">
+              {activeTab === 'feed' ? (
                 <AnimatePresence mode="wait">
-                  {/* Intelligence Lab (Initial State) */}
-                  {!result && activeTab === "analysis" && (
-                    <motion.div
-                      key="analysis-init"
-                      variants={pageVariants}
-                      initial="initial"
-                      animate="animate"
-                      exit="exit"
-                      transition={{ duration: 0.3 }}
-                      className="flex flex-col items-center justify-center min-h-[70vh] text-center space-y-12 max-w-4xl mx-auto"
-                    >
-                      <div className="relative group">
+                  <motion.div
+                    key="feed"
+                    variants={pageVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={{ duration: 0.3 }}
+                    className="flex-1 flex flex-col min-h-0"
+                  >
+                    <NewsFeed
+                      activeFeedTab={activeFeedTab}
+                      setActiveFeedTab={setActiveFeedTab}
+                      feed={feed}
+                      handleSummarize={handleSummarize}
+                      handleSaveArticle={handleSaveArticle}
+                      dbOffline={dbOffline}
+                      savedArticles={savedArticles}
+                      searchQuery={feedSearchQuery}
+                      onSearchChange={handleSearchChange}
+                      suggestedQuery={suggestedQuery}
+                      onApplySuggestion={applySuggestion}
+                      visibleCount={visibleFeedCount}
+                      onLoadMore={loadMoreFeed}
+                      trends={trends}
+                      user={user}
+                      followedTechs={followedTechs}
+                      triggerAuth={triggerAuth}
+                        handleOpenChat={setActiveChatArticle}
+                        onOpenSidebar={() => setIsSidebarOpen(true)}
+                        isFeedLoading={isFeedLoading}
+                      />
+                  </motion.div>
+                </AnimatePresence>
+              ) : (
+                  <div className="flex-1 overflow-y-auto p-8 max-w-7xl w-full mx-auto custom-scrollbar">
+                    <AnimatePresence mode="wait">
+                    {/* Intelligence Lab (Initial State) */}
+                    {!result && activeTab === "analysis" && (
+                      <motion.div
+                        key="analysis-init"
+                        variants={pageVariants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        transition={{ duration: 0.3 }}
+                        className="flex flex-col items-center justify-center min-h-[70vh] text-center space-y-12 max-w-4xl mx-auto"
+                      >
+                        <div className="relative group">
                         <div className="absolute inset-0 bg-tp-accent/20 blur-3xl rounded-full scale-150 group-hover:bg-tp-accent/30 transition-all"></div>
                         <div className="relative w-28 h-28 bg-tp-accent/10 rounded-[2.5rem] border border-tp-accent/20 flex items-center justify-center text-tp-accent mb-4 shadow-2xl shadow-tp-accent/10">
                           <Zap size={56} className="animate-pulse" />
@@ -492,35 +573,6 @@ function App() {
                     </motion.div>
                   )}
 
-                  {/* Discovery Feed View */}
-                  {!result && activeTab === "feed" && (
-                    <motion.div
-                      key="feed"
-                      variants={pageVariants}
-                      initial="initial"
-                      animate="animate"
-                      exit="exit"
-                      transition={{ duration: 0.3 }}
-                    >
-                      <NewsFeed
-                        activeFeedTab={activeFeedTab}
-                        setActiveFeedTab={setActiveFeedTab}
-                        feed={feed}
-                        handleSummarize={handleSummarize}
-                        handleSaveArticle={handleSaveArticle}
-                        dbOffline={dbOffline}
-                        savedArticles={savedArticles}
-                        searchQuery={feedSearchQuery}
-                        onSearchChange={handleSearchChange}
-                        suggestedQuery={suggestedQuery}
-                        onApplySuggestion={applySuggestion}
-                        visibleCount={visibleFeedCount}
-                        onLoadMore={loadMoreFeed}
-                        trends={trends}
-                      />
-                    </motion.div>
-                  )}
-
                   {/* Analysis View */}
                   {result && activeTab === "analysis" && (
                     <motion.div
@@ -734,26 +786,46 @@ function App() {
                   )}
                 </AnimatePresence>
               </div>
-            </main>
+            )}
+          </main>
 
             {/* Global Modals & Sidebars */}
-            <AuthModals
-              authMode={authMode}
-              setAuthMode={setAuthMode}
-              authData={authData}
-              setAuthData={setAuthData}
-              handleAuth={handleAuth}
-              error={error}
-            />
+            {authMode === 'signup' ? (
+              <OnboardingWizard
+                onComplete={handleOnboardingComplete}
+                onCancel={() => setAuthMode(null)}
+              />
+            ) : (
+              <AuthModals
+                authMode={authMode}
+                setAuthMode={setAuthMode}
+                authReason={authReason}
+                setAuthReason={setAuthReason}
+                authData={authData}
+                setAuthData={setAuthData}
+                handleAuth={handleAuth}
+                error={error}
+              />
+            )}
 
             <SummarySidebar
               summary={summary}
               isSummarizing={isSummarizing}
               setSummary={setSummary}
-              handleSaveArticle={handleSaveArticle}
-              dbOffline={dbOffline}
-              savedArticles={savedArticles}
-            />
+                handleSaveArticle={handleSaveArticle}
+                dbOffline={dbOffline}
+                savedArticles={savedArticles}
+                user={user}
+                triggerAuth={triggerAuth}
+              />
+
+              <IntelligenceChat
+                article={activeChatArticle}
+                isOpen={!!activeChatArticle}
+                onClose={() => setActiveChatArticle(null)}
+                user={user}
+                triggerAuth={triggerAuth}
+              />
           </motion.div>
         )}
       </AnimatePresence>

@@ -95,13 +95,19 @@ const LandingPage = ({ onStart, user }) => {
               TechPulse aggregates news and trends from GitHub, HackerNews, and Dev.to. Stay updated with AI summaries and visualizations.
             </motion.p>
 
-            <motion.div variants={itemVariants} className="flex flex-wrap items-center gap-8">
+            <motion.div variants={itemVariants} className="flex flex-wrap items-center gap-6">
+              <button 
+                onClick={() => onStart('onboarding')}
+                className="group px-10 py-5 bg-tp-accent text-black font-black uppercase text-xs tracking-[0.2em] rounded-2xl transition-all flex items-center gap-4 hover:scale-105 active:scale-95 shadow-xl shadow-tp-accent/20"
+              >
+                Start Intelligence Audit
+                <ArrowRight size={18} className="group-hover:translate-x-2 transition-transform" />
+              </button>
               <button 
                 onClick={() => onStart('feed')}
-                className="group px-12 py-6 bg-tp-accent text-black font-black uppercase text-xs tracking-[0.2em] rounded-[2rem] transition-all flex items-center gap-4 hover:scale-105 active:scale-95"
+                className="group px-10 py-5 bg-white/5 border border-white/10 text-white font-black uppercase text-xs tracking-[0.2em] rounded-2xl transition-all flex items-center gap-4 hover:bg-white/10"
               >
-                Start Exploring
-                <ArrowRight size={18} className="group-hover:translate-x-2 transition-transform" />
+                Live Feed
               </button>
             </motion.div>
           </div>

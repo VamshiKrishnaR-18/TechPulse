@@ -70,4 +70,7 @@ export const api = {
   fetchCachedTechNames: () => apiClient.get("/cached-names"),
   deleteArticle: (articleId) => apiClient.delete(`/save-article/${articleId}`),
   clearHistory: () => apiClient.delete("/history"),
+  chat: (articleId, message, history = []) => apiClient.post("/chat", { articleId, message, history }),
+  updatePreferences: (prefs) => apiClient.put("/preferences", prefs),
+  getPreferences: () => apiClient.get("/preferences"),
 };

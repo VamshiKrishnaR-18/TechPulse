@@ -1,6 +1,23 @@
 import logger from '../config/logger.js';
 import redisClient from '../config/redis.js';
 import prisma from '../config/prisma.js';
+import Parser from 'rss-parser';
+
+const parser = new Parser();
+
+const RSS_TARGETS = [
+    { name: 'InfoQ', url: 'https://feed.infoq.com/' },
+    { name: 'HackerNews', url: 'https://news.ycombinator.com/rss' },
+    { name: 'GitHub Trending', url: 'https://github-rss.vercel.app/repositories/daily' },
+    { name: 'Daily.dev', url: 'https://rss.daily.dev/rss' },
+    { name: 'Cloudflare', url: 'https://blog.cloudflare.com/rss/' },
+    { name: 'Netflix', url: 'https://netflixtechblog.com/feed' },
+    { name: 'Stripe', url: 'https://stripe.com/blog/feed.rss' },
+    { name: 'Meta', url: 'https://engineering.fb.com/feed/' },
+    { name: 'Vercel', url: 'https://vercel.com/blog/feed' },
+    { name: 'AWS', url: 'https://aws.amazon.com/blogs/aws/feed/' },
+    { name: 'OpenAI', url: 'https://openai.com/news/rss.xml' }
+];
 
 /**
  * 🚀 fetchSafe Helper
@@ -64,6 +81,51 @@ const fetchSafe = async (url, options = {}) => {
 };
 
 /**
+ * 📻 RSS Ingestion Engine
+ * Fetches and normalizes RSS feeds from target URLs.
+ */
+export const fetchRSSFeeds = async () => {
+    // 🚀 Speed Optimization: Parallel fetch with Promise.allSettled
+    const feedPromises = RSS_TARGETS.map(async (target) => {
+        const cacheKey = `rss:feed:${target.name}`;
+        
+        // 1. Try Redis Cache first for speed (15 min cache)
+        if (redisClient?.isOpen) {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) return JSON.parse(cached);
+        }
+
+        try {
+            const feed = await parser.parseURL(target.url);
+            const normalized = feed.items.map(item => ({
+                id: `rss-${target.name}-${item.guid || item.link}`,
+                title: item.title,
+                description: item.contentSnippet || item.content || `Strategic technical insights from ${target.name}.`,
+                url: item.link,
+                source: target.name,
+                author: item.creator || item.author || 'unknown',
+                createdAt: item.pubDate ? new Date(item.pubDate) : new Date(),
+                tags: item.categories || [target.name.toLowerCase()]
+            }));
+
+            // 2. Cache successful result
+            if (redisClient?.isOpen) {
+                await redisClient.set(cacheKey, JSON.stringify(normalized), { EX: 900 });
+            }
+            return normalized;
+        } catch (err) {
+            logger.error(`❌ RSS Fetch Error [${target.name}]: ${err.message}`);
+            return [];
+        }
+    });
+
+    const results = await Promise.allSettled(feedPromises);
+    return results
+        .filter(r => r.status === 'fulfilled')
+        .flatMap(r => r.value);
+};
+
+/**
  * 💾 Global News Cacher
  * Stores articles in PostgreSQL NewsCache for reliable fallbacks.
  */
@@ -120,9 +182,16 @@ const calculateRankScore = (item) => {
     // 3. Source Weighting
     const sourceWeights = {
         'GitHub': 100,      // High value code signals
-        'HackerNews': 80,  // High quality discussion
-        'Dev.to': 40,      // Community tutorials
-        'Reddit': 20       // High volume social
+        'HackerNews': 80,   // High quality discussion
+        'Cloudflare': 150,  // Tier-1 Engineering
+        'Netflix': 150,
+        'Stripe': 150,
+        'Meta': 150,
+        'Vercel': 150,
+        'AWS': 150,
+        'OpenAI': 150,
+        'Dev.to': 40,
+        'Reddit': 20
     };
     const sourceScore = sourceWeights[item.source] || 0;
 
@@ -159,10 +228,8 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
                     : 'https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=30'),
 
             github: searchTerms
-                ? `https://api.github.com/search/repositories?q=${encodeURIComponent(searchTerms)}&sort=stars&order=desc&per_page=30`
-                : (tab === 'Recent'
-                    ? `https://api.github.com/search/repositories?q=created:>${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}&sort=updated&order=desc&per_page=30`
-                    : `https://api.github.com/search/repositories?q=stars:>5000&sort=stars&order=desc&per_page=30`),
+                ? `https://api.github.com/search/repositories?q=${encodeURIComponent(searchTerms)}+pushed:>${new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}&sort=stars&order=desc&per_page=30`
+                : 'https://github-rss.vercel.app/repositories/daily', // 🚀 Switching to Daily Trending RSS for fresh intelligence
 
             devto: searchTerms
                 ? `https://dev.to/api/articles?per_page=25&tag=${encodeURIComponent(firstKeyword)}`
@@ -179,12 +246,33 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
 
         console.log("🚀 Fetching for:", searchTerms || "trending");
 
-        const [hnData, githubData, devToData, redditData] = await Promise.all([
+        const [hnData, githubRaw, devToData, redditData, rssData] = await Promise.all([
             fetchSafe(urls.hn),
             fetchSafe(urls.github),
             fetchSafe(urls.devto),
-            fetchSafe(urls.reddit)
+            fetchSafe(urls.reddit),
+            fetchRSSFeeds() // 📻 Ingest Tier-1 Engineering Blogs
         ]);
+
+        // 🧠 Normalize GitHub Data (Handle both RSS and API JSON)
+        let githubData = githubRaw;
+        if (urls.github.includes('github-rss.vercel.app')) {
+            // It's RSS, we need to map it to a similar structure
+            githubData = {
+                items: githubRaw?.items?.map(item => {
+                    return {
+                        id: item.guid || item.link,
+                        full_name: item.title,
+                        description: item.contentSnippet || item.description || '',
+                        html_url: item.link,
+                        owner: { avatar_url: null },
+                        stargazers_count: parseInt(item.content?.match(/(\d+) stars today/)?.[1] || '500'),
+                        updated_at: item.pubDate,
+                        language: item.categories?.[0] || 'code'
+                    };
+                }) || []
+            };
+        }
 
         // 🧩 SAFE HELPERS
         const safeDate = (date) => {
@@ -201,32 +289,54 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
         };
 
         // 🔹 HN
-        const hnPosts = Array.isArray(hnData?.hits) ? hnData.hits.map(hit => ({
-            id: `hn-${hit.objectID}`,
-            title: hit.title || hit.story_title || 'Untitled',
-            description: `Discussion on HackerNews`,
-            url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
-            image: `https://unavatar.io/duckduckgo/${safeDomain(hit.url)}`,
-            source: 'HackerNews',
-            author: hit.author || 'unknown',
-            tags: ['news'],
-            createdAt: safeDate(hit.created_at),
-            points: hit.points || 0
-        })) : [];
+        const hnPosts = Array.isArray(hnData?.hits) ? hnData.hits.map(hit => {
+            const title = hit.title || hit.story_title || 'Untitled';
+            const rawDescription = hit.story_text || '';
+            const description = (rawDescription === 'Comments' || rawDescription.length < 5)
+                ? `Strategic technical discussion on HackerNews regarding ${title}.`
+                : rawDescription;
+            
+            return {
+                id: `hn-${hit.objectID}`,
+                title,
+                description: description.length > 200 ? description.substring(0, 200) + '...' : description,
+                url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
+                image: `https://unavatar.io/duckduckgo/${safeDomain(hit.url)}`,
+                source: 'HackerNews',
+                author: hit.author || 'unknown',
+                tags: ['news', ...(hit._tags || []).filter(t => !['story', 'front_page', 'author_', 'comment'].some(f => t.startsWith(f)))],
+                createdAt: safeDate(hit.created_at),
+                points: hit.points || 0
+            };
+        }) : [];
 
         // 🔹 GitHub
-        const githubPosts = Array.isArray(githubData?.items) ? githubData.items.map(item => ({
-            id: `github-${item.id}`,
-            title: item.full_name,
-            description: item.description || 'GitHub repo',
-            url: item.html_url,
-            image: item.owner?.avatar_url,
-            source: 'GitHub',
-            author: item.owner?.login || 'unknown',
-            tags: [item.language || 'code'],
-            createdAt: safeDate(item.created_at),
-            points: item.stargazers_count || 0
-        })) : [];
+        const githubPosts = Array.isArray(githubData?.items) 
+            ? githubData.items
+                .filter(item => item.stargazers_count >= 500) // 🛡️ AI Bouncer: Minimum 500 stars
+                .map(item => {
+                    const rawDesc = item.description || '';
+                    const description = (rawDesc === 'Comments' || rawDesc.length < 5)
+                        ? `A trending repository on GitHub: ${item.full_name}`
+                        : rawDesc;
+                        
+                    return {
+                        id: `github-${item.id}`,
+                        title: item.full_name,
+                        description: description,
+                        url: item.html_url,
+                        image: null, // Kill identicons
+                        source: 'GitHub',
+                        author: item.owner?.login || 'unknown',
+                        tags: [item.language || 'code'],
+                        createdAt: safeDate(item.updated_at || item.pushed_at || item.created_at),
+                        points: item.stargazers_count || 0,
+                        // Seeded AI Metadata
+                        relevanceScore: 70,
+                        credibilityScore: 85,
+                        impactHorizon: 'Short-term'
+                    };
+                }) : [];
 
         // 🔹 Dev.to
         const devToPosts = Array.isArray(devToData) ? devToData.map(post => ({
@@ -243,27 +353,84 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
         })) : [];
 
         // 🔹 Reddit
-        const redditPosts = Array.isArray(redditData?.data?.children)
-            ? redditData.data.children.map(child => {
-                const d = child.data;
-                return {
-                    id: `reddit-${d.id}`,
-                    title: d.title,
-                    description: `r/${d.subreddit}`,
-                    url: `https://reddit.com${d.permalink}`,
-                    image: d.thumbnail?.startsWith('http') ? d.thumbnail : null,
-                    source: 'Reddit',
-                    author: d.author,
-                    tags: [d.subreddit],
-                    createdAt: safeDate(new Date(d.created_utc * 1000)),
-                    points: d.ups || 0
-                };
-            })
-            : [];
+        const redditPosts = Array.isArray(redditData?.data?.children) ? redditData.data.children.map(child => {
+            const item = child.data;
+            const rawDesc = item.selftext || '';
+            const description = (rawDesc === 'Comments' || rawDesc.length < 5)
+                ? `Strategic technical discussion in r/${item.subreddit}.`
+                : rawDesc;
 
-        // 🧮 MERGE
-        let merged = [...hnPosts, ...githubPosts, ...devToPosts, ...redditPosts]
-            .filter(item => item.title && item.url);
+            return {
+                id: `reddit-${item.id}`,
+                title: item.title,
+                description: description,
+                url: `https://reddit.com${item.permalink}`,
+                image: item.thumbnail && item.thumbnail.startsWith('http') ? item.thumbnail : null,
+                source: `r/${item.subreddit}`,
+                author: item.author || 'unknown',
+                tags: [item.subreddit],
+                createdAt: safeDate(item.created_utc * 1000),
+                points: item.ups || 0
+            };
+        }) : [];
+
+        // 🧮 MERGE & CLEAN
+        const STATIC_LIST_KEYWORDS = ['awesome', 'list', 'curated', 'collection', 'roadmap', 'free-programming-books', 'interview-university'];
+        
+        const merged = [...hnPosts, ...githubPosts, ...devToPosts, ...redditPosts, ...(rssData || [])]
+            .filter(item => item.title && item.url)
+            // 🛡️ AI Bouncer V2: Drop static reference lists and personal homework
+            .filter(item => {
+                const titleLower = item.title.toLowerCase();
+                const descLower = item.description.toLowerCase();
+                
+                // Drop if it's a known static list pattern
+                const isStaticList = STATIC_LIST_KEYWORDS.some(kw => 
+                    titleLower.includes(kw) || descLower.includes(kw)
+                );
+                
+                // Drop if it looks like a personal project or homework
+                const isPersonalProject = titleLower.includes('homework') || 
+                                       titleLower.includes('my-first') || 
+                                       titleLower.includes('portfolio');
+                
+                return !isStaticList && !isPersonalProject;
+            })
+            .filter((item, index, self) => self.findIndex(t => t.url === item.url) === index); // 🛡️ Unique URLs only
+
+        // 💾 Save high-signal articles to DB for background processing
+        // We do this asynchronously to not block the main feed response
+        cacheToDatabase(merged).catch(err => console.error("⚠️ Background caching failed:", err.message));
+
+        // 🧠 ENRICH WITH AI CACHE
+        let enriched = merged;
+        try {
+            const urls = merged.map(i => i.url);
+            const cachedData = await prisma.newsCache.findMany({
+                where: { url: { in: urls } }
+            });
+
+            if (cachedData.length > 0) {
+                const cacheMap = new Map(cachedData.map(c => [c.url, c]));
+                enriched = merged.map(item => {
+                    const cached = cacheMap.get(item.url);
+                    if (cached) {
+                        return {
+                            ...item,
+                            cleanTitle: cached.cleanTitle || item.title,
+                            aiSummary: cached.aiSummary,
+                            impactCategory: cached.impactCategory,
+                            relevanceScore: cached.relevanceScore || item.relevanceScore,
+                            credibilityScore: cached.credibilityScore || item.credibilityScore,
+                            impactHorizon: cached.impactHorizon || item.impactHorizon
+                        };
+                    }
+                    return item;
+                });
+            }
+        } catch (e) {
+            console.error("⚠️ Feed enrichment error:", e.message);
+        }
 
         console.log("HN:", hnPosts.length);
         console.log("GH:", githubPosts.length);
@@ -273,28 +440,31 @@ export const fetchMixedFeed = async ({ query = '', tab = 'For You', followedTech
 
         // 🏆 DYNAMIC SORT BASED ON TAB
         if (tab === 'Recent') {
-            merged.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            enriched.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         } else if (tab === 'Trending') {
-            merged.sort((a, b) => calculateRankScore(b) - calculateRankScore(a));
+            enriched.sort((a, b) => calculateRankScore(b) - calculateRankScore(a));
         } else {
-            // For You: Personalize by boosting followed techs
-            merged.sort((a, b) => {
+            // For You: Personalize by boosting followed techs and considering rank score
+            enriched.sort((a, b) => {
                 const aRelevance = followedTechs.some(tech => 
                     a.title.toLowerCase().includes(tech.toLowerCase()) || 
                     a.tags.some(t => t.toLowerCase().includes(tech.toLowerCase()))
-                ) ? 1000 : 0;
+                ) ? 2000 : 0; // High boost for followed techs
                 
                 const bRelevance = followedTechs.some(tech => 
                     b.title.toLowerCase().includes(tech.toLowerCase()) || 
                     b.tags.some(t => t.toLowerCase().includes(tech.toLowerCase()))
-                ) ? 1000 : 0;
+                ) ? 2000 : 0;
 
-                return (b.points + bRelevance) - (a.points + aRelevance);
+                const aScore = calculateRankScore(a) + aRelevance;
+                const bScore = calculateRankScore(b) + bRelevance;
+
+                return bScore - aScore;
             });
         }
 
         // 🔍 FILTER
-        let result = merged;
+        let result = enriched;
 
         if (normalizedQuery.length >= 3) {
             result = merged.filter(item => {

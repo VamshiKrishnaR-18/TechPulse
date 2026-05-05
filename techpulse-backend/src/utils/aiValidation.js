@@ -5,11 +5,13 @@ export const AISummarySchema = z.object({
     main_tech: z.string().min(1),
     sentiment_score: z.number().min(0).max(100),
     impact_verdict: z.string().min(10),
+    impact_category: z.string().optional(),
     key_concepts: z.array(z.string()).min(3),
     risks: z.array(z.string()).min(1)
 });
 
 export const AIAnalysisSchema = z.object({
+    definition: z.string().min(10).optional(),
     metrics: z.object({
         github_score: z.number().min(0).max(100),
         job_score: z.number().min(0).max(100),
@@ -30,7 +32,7 @@ export const AIAnalysisSchema = z.object({
         week: z.number().int().positive(),
         topic: z.string().min(1),
         description: z.string().min(10)
-    })).min(3)
+    })).min(1)
 });
 
 export const AISearchSuggestionSchema = z.object({
